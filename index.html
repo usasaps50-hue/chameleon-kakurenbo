@@ -1353,10 +1353,13 @@ function buildSchool() {
 
 
 /* =====================================================================
-   マップ3: 大阪の路地
-   看板・自販機・シャッター・ゴミ袋。色数が多いので擬態の腕が出る。
+   マップ2: 道頓堀
+   川ぞいのネオン街。川に当たり判定は無いので、飛びこんで潜れる。
+   ※ 実在のお店の看板やロゴは使わず、雰囲気だけを独自に作っています。
 ===================================================================== */
-/** 縦看板 (vertical=true) と横看板。文字数に合わせて大きさを決める */
+const BANK_Y = 3.2;        /* 岸（歩ける高さ） */
+const WATER_Y = 2.55;      /* 水面 */
+
 function signTexOsaka(text, bg, fg, vertical) {
   const n = text.length;
   const W = vertical ? 192 : Math.max(256, n * 120);
@@ -1410,134 +1413,436 @@ function asphaltTex() {
   });
 }
 
-function buildOsaka() {
-  const W = 56, half = W / 2;
+/* ---------------- 道頓堀まわりのテクスチャ ---------------- */
+function stoneTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#6a6862'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
+      const ox = (y % 2) * 32;
+      g.fillStyle = ['#767268', '#726f68', '#7a766d', '#66635c', '#6e6b64'][(x + y) % 5];
+      g.fillRect(x * 64 + ox - 32 + 2, y * 32 + 2, 60, 28);
+      g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 2;
+      g.strokeRect(x * 64 + ox - 32 + 2, y * 32 + 2, 60, 28);
+    }
+    for (let i = 0; i < 200; i++) {
+      g.fillStyle = 'rgba(0,0,0,.10)';
+      g.fillRect(Math.random() * w, Math.random() * h, 3, 3);
+    }
+  });
+}
+function waterTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#1c4a4e'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 90; i++) {
+      g.strokeStyle = 'rgba(150,220,230,' + (0.05 + Math.random() * 0.14).toFixed(3) + ')';
+      g.lineWidth = 1 + Math.random() * 2;
+      const y = Math.random() * h;
+      g.beginPath();
+      g.moveTo(0, y);
+      g.bezierCurveTo(w / 3, y + 6, w * 2 / 3, y - 6, w, y);
+      g.stroke();
+    }
+    /* ネオンの映りこみ */
+    const cols = ['rgba(255,90,70,.16)', 'rgba(90,190,255,.16)', 'rgba(255,210,80,.14)', 'rgba(120,255,160,.12)'];
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = cols[i % cols.length];
+      g.fillRect(Math.random() * w, Math.random() * h, 10 + Math.random() * 40, 3 + Math.random() * 8);
+    }
+  });
+}
+/** 夜のビル：光る窓 */
+function nightBuildingTex(base) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    const lit = ['#ffd98a', '#ffe9b8', '#cfe4ff', '#ffc46a'];
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 6; x++) {
+      const on = Math.random() < 0.62;
+      g.fillStyle = on ? lit[Math.floor(Math.random() * lit.length)] : '#2a2f36';
+      g.fillRect(10 + x * 40, 8 + y * 31, 28, 22);
+      g.fillStyle = 'rgba(0,0,0,.25)';
+      g.fillRect(10 + x * 40, 8 + y * 31 + 10, 28, 2);
+    }
+  });
+}
+/** ネオン看板いろいろ（実在のロゴは使わない、独自デザイン） */
+function neonRunnerTex() {
+  return canvasTex(384, 512, function (g, w, h) {
+    g.fillStyle = '#0a1f4a'; g.fillRect(0, 0, w, h);
+    /* 放射状の光 */
+    g.save(); g.translate(w / 2, h * 0.55);
+    for (let i = 0; i < 28; i++) {
+      g.rotate(Math.PI * 2 / 28);
+      g.fillStyle = i % 2 ? 'rgba(120,200,255,.20)' : 'rgba(80,160,255,.10)';
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(w * 0.9, -22); g.lineTo(w * 0.9, 22); g.fill();
+    }
+    g.restore();
+    /* 走る人（独自のシルエット） */
+    g.strokeStyle = '#ffffff'; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.fillStyle = '#ffffff';
+    const cx = w / 2, cy = h * 0.5;
+    g.beginPath(); g.arc(cx + 4, cy - 118, 26, 0, Math.PI * 2); g.fill();   /* 頭 */
+    g.lineWidth = 30;
+    g.beginPath(); g.moveTo(cx + 2, cy - 88); g.lineTo(cx - 6, cy + 6); g.stroke();  /* 胴 */
+    g.lineWidth = 24;
+    g.beginPath(); g.moveTo(cx, cy - 72); g.lineTo(cx + 74, cy - 122); g.lineTo(cx + 96, cy - 176); g.stroke();  /* 右腕 */
+    g.beginPath(); g.moveTo(cx - 2, cy - 66); g.lineTo(cx - 76, cy - 96); g.lineTo(cx - 104, cy - 62); g.stroke(); /* 左腕 */
+    g.lineWidth = 26;
+    g.beginPath(); g.moveTo(cx - 6, cy + 4); g.lineTo(cx + 62, cy + 66); g.lineTo(cx + 60, cy + 148); g.stroke(); /* 右脚 */
+    g.beginPath(); g.moveTo(cx - 6, cy + 4); g.lineTo(cx - 74, cy + 74); g.lineTo(cx - 122, cy + 60); g.stroke(); /* 左脚 */
+    /* 下のトラック */
+    g.fillStyle = '#e8d24a'; g.fillRect(0, h - 46, w, 40);
+    g.fillStyle = '#0a1f4a'; g.font = 'bold 30px ' + JPFONT;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('ゴール', w / 2, h - 26);
+  });
+}
+function neonCanTex() {
+  return canvasTex(256, 512, function (g, w, h) {
+    g.fillStyle = '#12161c'; g.fillRect(0, 0, w, h);
+    /* 缶 */
+    g.fillStyle = '#e8d24a'; g.fillRect(w * 0.16, h * 0.10, w * 0.68, h * 0.72);
+    g.fillStyle = '#cbb43a'; g.fillRect(w * 0.16, h * 0.10, w * 0.10, h * 0.72);
+    g.fillStyle = '#f2ead0'; g.fillRect(w * 0.16, h * 0.08, w * 0.68, h * 0.05);
+    g.fillStyle = '#f2ead0'; g.fillRect(w * 0.16, h * 0.79, w * 0.68, h * 0.05);
+    /* 泡 */
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 26; i++) {
+      g.beginPath();
+      g.arc(w * 0.2 + Math.random() * w * 0.6, h * 0.14 + Math.random() * h * 0.14, 6 + Math.random() * 14, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#1d2a4a'; g.font = 'bold 44px ' + JPFONT;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('生', w / 2, h * 0.42);
+    g.font = 'bold 22px ' + JPFONT;
+    g.fillText('なま', w / 2, h * 0.55);
+    g.fillStyle = '#8a94a4'; g.font = 'bold 16px ' + JPFONT;
+    g.fillText('350ml', w / 2, h * 0.72);
+  });
+}
+function neonCrabTex() {
+  return canvasTex(384, 288, function (g, w, h) {
+    g.fillStyle = '#1a1013'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#d8342c';
+    /* 甲羅 */
+    g.beginPath(); g.ellipse(w / 2, h * 0.52, w * 0.24, h * 0.24, 0, 0, Math.PI * 2); g.fill();
+    /* 脚 */
+    g.strokeStyle = '#d8342c'; g.lineWidth = 15; g.lineCap = 'round';
+    for (let s = -1; s <= 1; s += 2) {
+      for (let i = 0; i < 3; i++) {
+        g.beginPath();
+        g.moveTo(w / 2 + s * w * 0.18, h * 0.5 + i * 22 - 16);
+        g.lineTo(w / 2 + s * w * 0.33, h * 0.42 + i * 30 - 10);
+        g.lineTo(w / 2 + s * w * 0.44, h * 0.62 + i * 26 - 14);
+        g.stroke();
+      }
+      /* はさみ */
+      g.beginPath();
+      g.moveTo(w / 2 + s * w * 0.2, h * 0.4);
+      g.lineTo(w / 2 + s * w * 0.36, h * 0.22);
+      g.stroke();
+      g.beginPath(); g.ellipse(w / 2 + s * w * 0.4, h * 0.17, 26, 17, 0, 0, Math.PI * 2); g.fill();
+    }
+    /* 目 */
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.arc(w / 2 - 16, h * 0.42, 7, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(w / 2 + 16, h * 0.42, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f5e6b8'; g.font = 'bold 34px ' + JPFONT;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('かに', w / 2, h * 0.88);
+  });
+}
+function neonOctopusTex() {
+  return canvasTex(320, 320, function (g, w, h) {
+    g.fillStyle = '#2a1418'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#e0503f';
+    g.beginPath(); g.ellipse(w / 2, h * 0.36, w * 0.26, h * 0.24, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#e0503f'; g.lineWidth = 18; g.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const a = -0.9 + i * 0.45;
+      g.beginPath();
+      g.moveTo(w / 2 + Math.sin(a) * 40, h * 0.52);
+      g.quadraticCurveTo(w / 2 + Math.sin(a) * 100, h * 0.7, w / 2 + Math.sin(a) * 120, h * 0.88);
+      g.stroke();
+    }
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.arc(w / 2 - 26, h * 0.3, 12, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(w / 2 + 26, h * 0.3, 12, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1a0c0e';
+    g.beginPath(); g.arc(w / 2 - 26, h * 0.3, 5, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(w / 2 + 26, h * 0.3, 5, 0, Math.PI * 2); g.fill();
+  });
+}
+/** ネオンの縦看板（文字が光る） */
+function neonSignTex(text, bg, fg) {
+  const n = text.length;
+  return canvasTex(160, Math.max(220, n * 130), function (g, w, h) {
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.strokeStyle = fg; g.lineWidth = 8; g.strokeRect(9, 9, w - 18, h - 18);
+    g.fillStyle = fg;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const size = Math.min(w * 0.66, h / (n + 0.4));
+    g.font = 'bold ' + Math.floor(size) + 'px ' + JPFONT;
+    for (let i = 0; i < n; i++) g.fillText(text[i], w / 2, h * (i + 0.65) / (n + 0.28));
+  });
+}
+
+/** ネオン＝光って見えるように、光源の影響を受けない板 */
+function neon(x, y, z, w, h, ry, tex) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+  m.position.set(x, y, z);
+  m.rotation.y = ry || 0;
+  group.add(m);
+  return m;
+}
+
+function buildDotonbori() {
+  const HALF_W = 32;
+  const CANAL = 7.5;                 /* 川はば（中心から） */
+  const stone = stoneTex();
+
+  /* ---------- 川底と水面 ---------- */
+  flat(0, 0.02, 0, HALF_W * 2, CANAL * 2, 0, -Math.PI / 2, '#123033');
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(HALF_W * 2, CANAL * 2),
+    new THREE.MeshBasicMaterial({
+      map: (function () { const t = waterTex(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(8, 2); return t; })(),
+      transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false
+    }));
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = WATER_Y;
+  water.renderOrder = 2;
+  group.add(water);                  /* 当たり判定なし＝そのまま潜れる */
+
+  /* ---------- 両岸（歩ける高さまで石垣） ---------- */
+  function bank(zc, sz) {
+    box(0, 0, zc, HALF_W * 2, BANK_Y, sz, '#6a6862');
+    /* 川に面した石垣 */
+    const face = zc > 0 ? zc - sz / 2 - 0.03 : zc + sz / 2 + 0.03;
+    flat(0, BANK_Y / 2, face, HALF_W * 2, BANK_Y, 0, 0, stone, [HALF_W / 2, 1]);
+  }
+  bank(CANAL + 9, 18);               /* 北岸 */
+  bank(-(CANAL + 9), 18);            /* 南岸 */
+  /* 岸の上の遊歩道（模様） */
+  flat(0, BANK_Y + 0.02, CANAL + 2.2, HALF_W * 2, 4.2, 0, -Math.PI / 2, stone, [HALF_W / 2, 1]);
+  flat(0, BANK_Y + 0.02, -(CANAL + 2.2), HALF_W * 2, 4.2, 0, -Math.PI / 2, stone, [HALF_W / 2, 1]);
   const road = asphaltTex();
-  flat(0, 0.01, 0, W, W, 0, -Math.PI / 2, road, [W / 3, W / 3]);
+  flat(0, BANK_Y + 0.02, CANAL + 8, HALF_W * 2, 7, 0, -Math.PI / 2, road, [HALF_W / 2, 2]);
+  flat(0, BANK_Y + 0.02, -(CANAL + 8), HALF_W * 2, 7, 0, -Math.PI / 2, road, [HALF_W / 2, 2]);
 
-  /* 通りに沿った建物（両側） */
-  const SHOP = [
-    ['たこ焼', '#e03a2f', '#fff3c4'], ['ラーメン', '#f0b62a', '#3a2410'],
-    ['居酒屋', '#c0392b', '#ffe9b0'], ['喫茶', '#2f6fb0', '#f2f7ff'],
-    ['ゲーム', '#7a3fb0', '#f6e9ff'], ['薬', '#2f9a5a', '#eafff2'],
-    ['カラオケ', '#e0562a', '#fff0e0'], ['本', '#3f7fa8', '#eef9ff']
+  /* ---------- 川ぞいの手すり ---------- */
+  function railing(zc, n) {
+    for (let i = 0; i <= n; i++) {
+      const x = -HALF_W + i * (HALF_W * 2 / n);
+      cyl(x, BANK_Y, zc, 0.055, 1.05, '#b9bfc6', 8, true);
+    }
+    box(0, BANK_Y + 1.0, zc, HALF_W * 2, 0.08, 0.08, '#cfd5db', 0, true);
+    box(0, BANK_Y + 0.55, zc, HALF_W * 2, 0.05, 0.05, '#aab0b8', 0, true);
+  }
+  railing(CANAL + 0.25, 34);
+  railing(-(CANAL + 0.25), 34);
+
+  /* ---------- 橋（えびす橋ふうのアーチ） ---------- */
+  (function bridge() {
+    const bz0 = -(CANAL + 3.5), bz1 = CANAL + 3.5;
+    const n = 14, top = BANK_Y + 2.4;
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n;
+      const z0 = bz0 + (bz1 - bz0) * t0, z1 = bz0 + (bz1 - bz0) * t1;
+      const y0 = BANK_Y + Math.sin(t0 * Math.PI) * 2.4;
+      const y1 = BANK_Y + Math.sin(t1 * Math.PI) * 2.4;
+      const zc = (z0 + z1) / 2, yc = (y0 + y1) / 2;
+      const len = Math.hypot(z1 - z0, y1 - y0);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(9, 0.3, len + 0.05), mat('#dfe3e8'));
+      m.position.set(0, yc, zc);
+      m.rotation.x = -Math.atan2(y1 - y0, z1 - z0);
+      group.add(m);
+      addSolid(0, zc, 9, len + 0.05, yc + 0.16);
+      /* 欄干 */
+      for (const sx of [-4.4, 4.4]) {
+        const r = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.15, len + 0.05), mat('#eef2f6'));
+        r.position.set(sx, yc + 0.7, zc);
+        r.rotation.x = m.rotation.x;
+        group.add(r);
+      }
+    }
+    /* 橋の名前板 */
+    for (const s of [-1, 1]) {
+      box(s * 4.6, BANK_Y + 2.5, 0, 0.3, 1.0, 3.2, '#cfd5db', 0, true);
+      neon(s * 4.85, BANK_Y + 3.0, 0, 2.8, 0.8, s * Math.PI / 2,
+        canvasTex(384, 112, function (g, w, h) {
+          g.fillStyle = '#f2f4f7'; g.fillRect(0, 0, w, h);
+          g.fillStyle = '#2a3038'; g.font = 'bold 62px ' + JPFONT;
+          g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.fillText('えびす橋', w / 2, h / 2 + 3);
+        }));
+    }
+    /* 橋の照明 */
+    for (let i = 0; i < 5; i++) {
+      const z = bz0 + (bz1 - bz0) * (i + 0.5) / 5;
+      const y = BANK_Y + Math.sin((i + 0.5) / 5 * Math.PI) * 2.4;
+      for (const sx of [-4.4, 4.4]) {
+        cyl(sx, y + 1.2, z, 0.05, 0.9, '#cfd5db', 6, true);
+        sph(sx, y + 2.3, z, 0.16, '#fff0c0', true, 8);
+      }
+    }
+  })();
+
+  /* ---------- 両岸のビル ---------- */
+  const FACADES = [
+    ['#3a3f4a', '#e8412f', '#ffe9b0', 'たこ焼'],
+    ['#2f3742', '#f0b62a', '#3a2410', 'ラーメン'],
+    ['#40363f', '#7a3fb0', '#f6e9ff', 'カラオケ'],
+    ['#333a44', '#2f7fc4', '#eaf3ff', '喫茶'],
+    ['#3d3336', '#2f9a5a', '#eafff2', '薬'],
+    ['#39323c', '#d4342c', '#ffe9a8', '串かつ']
   ];
-  function building(x, z, w, d, hgt, faceZ, idx) {
-    const base = ['#8a8f96', '#9aa0a8', '#7e848c', '#a6a29a'][idx % 4];
-    box(x, 0, z, w, hgt, d, base);
-    const sh = shutterTex(['#7d8896', '#8d7f6c', '#6f7d88', '#95867a'][idx % 4]);
-    const off = d / 2 + 0.02;
-    flat(x, 1.5, z + (faceZ > 0 ? off : -off), w * 0.8, 3.0, 0, 0, sh, [w * 0.8 / 2, 1]);
-    const s = SHOP[idx % SHOP.length];
-    /* 縦看板 */
-    flat(x + w * 0.42, 4.2, z + (faceZ > 0 ? off + 0.5 : -off - 0.5), 1.5, 4.4, 0, 0,
-      signTexOsaka(s[0], s[1], s[2], true));
-    box(x + w * 0.42, 2.0, z + (faceZ > 0 ? off + 0.5 : -off - 0.5), 1.5, 4.4, 0.35, s[1], 0, false);
-    /* 横看板 */
-    flat(x - w * 0.1, 3.4, z + (faceZ > 0 ? off : -off), w * 0.55, 1.1, 0, 0,
-      signTexOsaka(s[0], s[2], s[1]));
+  function facadeRow(zc, faceSign, skip) {
+    for (let i = 0; i < 6; i++) {
+      const x = -27 + i * 11;
+      const big = skip.indexOf(i) >= 0;      /* 大看板を出す建物は縦ネオンを付けない */
+      const f = FACADES[(i + (zc > 0 ? 0 : 3)) % FACADES.length];
+      const hgt = 11 + (i % 3) * 3.5;
+      box(x, BANK_Y, zc, 10.2, hgt, 9, f[0]);
+      const off = 4.5 + 0.03;
+      /* 川を向く面なので、北岸のときは板を180度まわす（でないと文字が鏡になる） */
+      const fr = faceSign < 0 ? Math.PI : 0;
+      /* 窓の光 */
+      neon(x, BANK_Y + hgt * 0.55, zc + faceSign * off, 9.6, hgt * 0.8, fr,
+        nightBuildingTex(f[0]));
+      /* 1階の店先 */
+      flat(x, BANK_Y + 1.6, zc + faceSign * (off + 0.02), 9.6, 3.2, fr, 0, shutterTex('#6f7d88'), [3, 1]);
+      /* 横の看板 */
+      if (!big) neon(x - 1.2 * faceSign, BANK_Y + 4.6, zc + faceSign * (off + 0.06), 6.2, 1.7, fr,
+        signTexOsaka(f[3], f[1], f[2]));
+      /* 縦のネオン */
+      if (!big) {
+        neon(x + 4.1 * faceSign, BANK_Y + 7.4, zc + faceSign * (off + 0.3), 1.7, 6.4, fr,
+          neonSignTex(f[3], f[1], f[2]));
+        box(x + 4.1 * faceSign, BANK_Y + 4.2, zc + faceSign * (off + 0.28), 1.7, 6.4, 0.3, f[1], 0, false);
+      }
+    }
   }
-  for (let i = 0; i < 5; i++) {
-    building(-22 + i * 11, -18, 10, 9, 7 + (i % 3), 1, i);
-    building(-22 + i * 11, 18, 10, 9, 7 + ((i + 1) % 3), -1, i + 3);
-  }
-  /* 突きあたりの大きなビル */
-  box(0, 0, -26.5, 44, 9, 7, '#7e848c');
-  flat(0, 5.2, -22.9, 16, 5, 0, 0, signTexOsaka('大阪', '#d4342c', '#ffe9a8'));
-  box(0, 0, 26.5, 44, 9, 7, '#8a8f96');
-  flat(0, 5.2, 22.9, 14, 4.4, 0, 0, signTexOsaka('商店街', '#2f6fb0', '#eaf3ff'));
+  facadeRow(CANAL + 13.5, -1, [1, 3]);      /* 北岸（走る人と缶を出す） */
+  facadeRow(-(CANAL + 13.5), 1, [2, 4]);    /* 南岸（かにとたこを出す） */
 
-  /* 自販機（並べると擬態しやすい） */
+  /* ---------- 名物の大看板（実在ロゴではない独自デザイン） ---------- */
+  const NF = CANAL + 13.5 - 4.5;        /* 北岸ビルの正面 */
+  const SF = -(CANAL + 13.5 - 4.5);    /* 南岸ビルの正面 */
+  neon(-16, BANK_Y + 11.5, NF - 0.35, 9.4, 12.6, Math.PI, neonRunnerTex());   /* 走る人 */
+  box(-16, BANK_Y + 5.2, NF - 0.15, 9.6, 12.8, 0.4, '#0a1f4a', 0, false);
+  neon(6, BANK_Y + 12, NF - 0.35, 5.6, 11.2, Math.PI, neonCanTex());          /* 大きな缶 */
+  box(6, BANK_Y + 6.4, NF - 0.15, 5.8, 11.4, 0.4, '#12161c', 0, false);
+  neon(-5, BANK_Y + 7.4, SF + 0.35, 8.4, 6.3, 0, neonCrabTex());           /* かに */
+  box(-5, BANK_Y + 4.25, SF + 0.15, 8.6, 6.5, 0.4, '#1a1013', 0, false);
+  neon(17, BANK_Y + 6.6, SF + 0.35, 5.8, 5.8, 0, neonOctopusTex());        /* たこ */
+  box(17, BANK_Y + 3.7, SF + 0.15, 6.0, 6.0, 0.4, '#2a1418', 0, false);
+
+  /* ---------- 川に浮かぶ観光船（乗れる） ---------- */
+  function boat(x, ry) {
+    const g = furn(x, 0, ry);
+    g.position.y = WATER_Y - 0.55;
+    part(g, 0, 0, 0, 7.2, 0.75, 2.6, '#e8b73a');            /* 船体 */
+    part(g, 0, 0.75, 0, 6.6, 0.12, 2.3, '#8a6a2a');         /* 甲板 */
+    part(g, -3.6, 0.3, 0, 0.6, 0.6, 2.0, '#d8a72e');
+    part(g, 3.6, 0.3, 0, 0.6, 0.6, 2.0, '#d8a72e');
+    for (const sx of [-2.6, -0.9, 0.9, 2.6]) {              /* 屋根の柱 */
+      part(g, sx, 0.87, -1.0, 0.1, 1.5, 0.1, '#6b5322');
+      part(g, sx, 0.87, 1.0, 0.1, 1.5, 0.1, '#6b5322');
+    }
+    part(g, 0, 2.37, 0, 6.8, 0.14, 2.5, '#c8492e');         /* 屋根 */
+    for (let i = 0; i < 4; i++) part(g, -2.4 + i * 1.6, 0.9, 0, 1.3, 0.35, 1.6, '#6b5322');  /* いす */
+    /* 提灯 */
+    for (let i = 0; i < 6; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), mat('#e8543a'));
+      s.scale.y = 1.3; s.position.set(-2.7 + i * 1.1, 2.15, 1.28); g.add(s);
+    }
+    neon(x + (ry ? 0 : 0), WATER_Y + 0.15, ry ? 0 : 1.35, 2.4, 0.5, ry,
+      canvasTex(256, 64, function (gg, w, h) {
+        gg.fillStyle = '#e8b73a'; gg.fillRect(0, 0, w, h);
+        gg.fillStyle = '#3a2a10'; gg.font = 'bold 38px ' + JPFONT;
+        gg.textAlign = 'center'; gg.textBaseline = 'middle';
+        gg.fillText('とんぼり丸', w / 2, h / 2 + 2);
+      }));
+    addSolid(x, 0, ry ? 3 : 7.4, ry ? 7.4 : 3, WATER_Y + 0.35);   /* 甲板に乗れる */
+  }
+  boat(-17, 0);
+  boat(12, 0);
+
+  /* ---------- 岸の上の小物 ---------- */
   const vend = vendingTex();
   function vending(x, z, ry) {
-    box(x, 0, z, 1.1, 1.9, 0.75, '#b02a26', ry);
+    box(x, BANK_Y, z, 1.1, 1.9, 0.75, '#b02a26', ry);
     const off = 0.39;
-    flat(x + (ry ? off : 0), 0.98, z + (ry ? 0 : off), 1.05, 1.8, ry, 0, vend);
+    flat(x + (ry ? off : 0), BANK_Y + 0.98, z + (ry ? 0 : off), 1.05, 1.8, ry, 0, vend);
   }
-  for (let i = 0; i < 3; i++) vending(-13 + i * 1.2, -12.6, 0);
-  for (let i = 0; i < 3; i++) vending(13 - i * 1.2, 12.6, Math.PI);
-  vending(-23.2, 4, Math.PI / 2); vending(-23.2, 5.2, Math.PI / 2);
+  for (let i = 0; i < 3; i++) vending(-24 + i * 1.2, CANAL + 5.6, Math.PI);
+  for (let i = 0; i < 3; i++) vending(23 - i * 1.2, -(CANAL + 5.6), 0);
 
-  /* ゴミ袋の山 */
-  const bag = ['#2f3238', '#3a3f46', '#e9e6dc'];
-  for (let c = 0; c < 7; c++) {
-    const cx = (Math.random() - 0.5) * 44, cz = (Math.random() < 0.5 ? -1 : 1) * (9 + Math.random() * 3);
-    const col = bag[Math.floor(Math.random() * bag.length)];
-    for (let i = 0; i < 4 + Math.floor(Math.random() * 4); i++) {
-      const r = 0.42 + Math.random() * 0.26;
-      sph(cx + (Math.random() - 0.5) * 2.4, r * 0.9, cz + (Math.random() - 0.5) * 1.8, r, col, false, 9);
-    }
-  }
-  /* 三角コーンと看板 */
-  for (let i = 0; i < 8; i++) {
-    const x = (Math.random() - 0.5) * 42, z = (Math.random() - 0.5) * 14;
-    box(x, 0, z, 0.42, 0.06, 0.42, '#d9531e');
-    taper(x, 0.06, z, 0.04, 0.19, 0.55, '#e8622a');
-  }
-  /* 電柱と提灯 */
-  for (let i = 0; i < 6; i++) {
-    const x = -21 + i * 8.4, z = i % 2 ? -8.4 : 8.4;
-    cyl(x, 0, z, 0.19, 7.5, '#8d8f92', 10);
-    for (let k = 0; k < 3; k++) {
-      sph(x + 0.9, 3.4 - k * 0.0, z + (k - 1) * 0.9, 0.28, '#e8543a', true, 10);
-    }
-  }
-  /* 屋台（原作の大阪にもある大物。屋根に乗れる） */
-  yatai(-9, 0.5, 0.25);
-  yatai(9.5, -1.5, Math.PI - 0.2);
-  yatai(21, 3, -0.5);
-  /* 路上の小物 */
-  postBox(-19.5, -11.5);
-  beerCrates(-11.5, -12.4, 0.3); beerCrates(-10.6, -12.2, -0.2);
-  beerCrates(11, 12.3, 0.5); beerCrates(15.8, -12.2, 0);
-  acUnit(-17.4, -12.7, 0); acUnit(-5.5, 12.7, Math.PI); acUnit(19.8, -12.7, 0);
-  aSign(-15, -10.8, 0.3, 'たこ焼', '#e03a2f', '#fff3c4');
-  aSign(4, 10.6, -0.4, '喫茶', '#2f6fb0', '#f2f7ff');
-  aSign(24.5, -10.5, 0.2, '本日開店', '#f0b62a', '#3a2410');
-  cardboard(-24.5, -11.8, 0.2); cardboard(23.5, 11.8, -0.5);
-  chairStack(12.5, 12.6, 0);
-  bikeRack(-27, -11.6, 0, 6);                           /* 自転車の列 */
-  bikeRack(27, 11.6, Math.PI, 6);
-  phoneBooth(-24.5, 9.5, 0.3);                          /* 電話ボックス */
-  standTable(-13.5, 4.5); standTable(-12, 5.5);         /* 立ち飲みテーブル */
-  standTable(16.5, -4.5); standTable(18, -5.5);
-
-  /* ベンチと植木 */
-  bench(-6, 6.5, 0); bench(6, -6.5, Math.PI);
+  /* 屋台・ベンチ・自転車・ゴミ袋 */
+  yatai(-8, CANAL + 5.5, Math.PI);
+  yatai(20, CANAL + 5.5, Math.PI);
+  yatai(-20, -(CANAL + 5.5), 0);
+  bikeRack(9, CANAL + 6, Math.PI, 6);
+  bikeRack(-12, -(CANAL + 6), 0, 6);
+  phoneBooth(26, CANAL + 5.5, Math.PI);
+  postBox(-28, -(CANAL + 5.2));
+  standTable(2, CANAL + 4.2); standTable(3.5, CANAL + 5);
+  standTable(-3, -(CANAL + 4.2)); standTable(-4.5, -(CANAL + 5));
   for (let i = 0; i < 5; i++) {
-    const x = -20 + i * 10;
-    cyl(x, 0, -4.5, 0.55, 0.7, '#7a6a58', 12);
-    sph(x, 1.3, -4.5, 0.85, '#4f8f4a', true, 10);
+    beerCrates(-26 + i * 13, CANAL + 4.4, 0.3);
+    beerCrates(-20 + i * 13, -(CANAL + 4.4), -0.2);
   }
-
-  /* 通りをわたす赤提灯 */
-  for (let r = 0; r < 3; r++) {
-    const z = -6 + r * 6;
-    for (let i = 0; i < 9; i++) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat('#e8543a'));
-      m.scale.y = 1.35;
-      m.position.set(-20 + i * 5, 4.6 - Math.sin(i / 8 * Math.PI) * 0.5, z);
-      group.add(m);
+  const bag = ['#2f3238', '#3a3f46', '#e9e6dc'];
+  for (let c = 0; c < 8; c++) {
+    const cx = (Math.random() - 0.5) * 52;
+    const cz = (Math.random() < 0.5 ? 1 : -1) * (CANAL + 4 + Math.random() * 3);
+    const col = bag[Math.floor(Math.random() * bag.length)];
+    for (let i = 0; i < 4 + Math.floor(Math.random() * 3); i++) {
+      const r = 0.42 + Math.random() * 0.24;
+      sph(cx + (Math.random() - 0.5) * 2.2, BANK_Y + r * 0.9, cz + (Math.random() - 0.5) * 1.6, r, col, false, 9);
     }
   }
+  for (let i = 0; i < 10; i++) {
+    const x = (Math.random() - 0.5) * 54;
+    const z = (Math.random() < 0.5 ? 1 : -1) * (CANAL + 3 + Math.random() * 5);
+    box(x, BANK_Y, z, 0.42, 0.06, 0.42, '#d9531e');
+    taper(x, BANK_Y + 0.06, z, 0.04, 0.19, 0.55, '#e8622a');
+  }
+  /* 街灯 */
+  for (let i = 0; i < 8; i++) {
+    for (const s of [1, -1]) {
+      const x = -28 + i * 8;
+      cyl(x, BANK_Y, s * (CANAL + 1.2), 0.11, 5, '#8d8f92', 10);
+      sph(x, BANK_Y + 5.2, s * (CANAL + 1.2), 0.26, '#fff2c8', true, 10);
+    }
+  }
+  /* 川の中の障害物（潜って隠れる用） */
+  for (let i = 0; i < 7; i++) {
+    const x = (Math.random() - 0.5) * 52;
+    const z = (Math.random() - 0.5) * (CANAL * 1.4);
+    if (Math.random() < 0.5) box(x, 0, z, 1.4, 1.0, 1.2, '#26454a');   /* 沈んだ箱 */
+    else cyl(x, 0, z, 0.45, 1.6, '#2a4e52', 10);                        /* 杭 */
+  }
 
-  /* 外周（見えない壁＋ビルの背） */
-  const t = 1.2;
-  solids.push({ x0: -half - t, z0: -half - t, x1: half + t, z1: -half, top: 10 });
-  solids.push({ x0: -half - t, z0: half, x1: half + t, z1: half + t, top: 10 });
-  solids.push({ x0: -half - t, z0: -half - t, x1: -half, z1: half + t, top: 10 });
-  solids.push({ x0: half, z0: -half - t, x1: half + t, z1: half + t, top: 10 });
-  const sideTex = shutterTex('#6f7d88');
-  const sd = [[0, -half, 0], [0, half, Math.PI], [-half, 0, Math.PI / 2], [half, 0, -Math.PI / 2]];
-  for (let i = 0; i < 4; i++) flat(sd[i][0], 5, sd[i][1], W, 10, sd[i][2], 0, sideTex, [W / 3, 3]);
+  /* ---------- 外周 ---------- */
+  const t = 1.2, H = 18;
+  solids.push({ x0: -HALF_W - t, z0: -HALF_W - t, x1: HALF_W + t, z1: -HALF_W, top: H });
+  solids.push({ x0: -HALF_W - t, z0: HALF_W, x1: HALF_W + t, z1: HALF_W + t, top: H });
+  solids.push({ x0: -HALF_W - t, z0: -HALF_W - t, x1: -HALF_W, z1: HALF_W + t, top: H });
+  solids.push({ x0: HALF_W, z0: -HALF_W - t, x1: HALF_W + t, z1: HALF_W + t, top: H });
+  const side = nightBuildingTex('#2b3038');
+  const sd = [[0, -HALF_W, 0], [0, HALF_W, Math.PI], [-HALF_W, 0, Math.PI / 2], [HALF_W, 0, -Math.PI / 2]];
+  for (let i = 0; i < 4; i++) neon(sd[i][0], H / 2, sd[i][1], HALF_W * 2, H, sd[i][2], side);
 
-  scene.background = new THREE.Color('#39456b');
-  scene.fog = new THREE.Fog('#39456b', 44, 120);
-  amb.intensity = 1.0; sun.intensity = 0.16;
+  scene.background = new THREE.Color('#0e1526');
+  scene.fog = new THREE.Fog('#0e1526', 48, 130);
+  amb.intensity = 0.98; sun.intensity = 0.10;
 
   const spawns = [];
-  for (let i = 0; i < 24; i++) {
-    spawns.push([(Math.random() - 0.5) * 46, (Math.random() - 0.5) * 20]);
+  for (let i = 0; i < 14; i++) {
+    spawns.push([-27 + i * 4, CANAL + 4.5]);
+    spawns.push([-25 + i * 4, -(CANAL + 4.5)]);
   }
   return spawns;
 }
@@ -1546,8 +1851,8 @@ function buildOsaka() {
    マップの登録と切りかえ
 ===================================================================== */
 const MAPS = [
-  { name: '学校',      build: buildSchool },
-  { name: '大阪の路地', build: buildOsaka }
+  { name: '学校',     build: buildSchool },
+  { name: '道頓堀',   build: buildDotonbori }
 ];
 
 let amb = null, sun = null;
@@ -3518,6 +3823,21 @@ function step(dt) {
   } else if (camera.view && camera.view.enabled) {
     camera.clearViewOffset();
   }
+
+  /* 川に潜ったときの見え方（当たり判定は無いのでそのまま沈める） */
+  if (MAPS[G.map] && MAPS[G.map].name === '道頓堀') {
+    const under = camera.position.y < WATER_Y;
+    if (under !== step._under) {
+      step._under = under;
+      if (under) {
+        scene.background = new THREE.Color('#0d3a40');
+        scene.fog = new THREE.Fog('#0d3a40', 20, 90);   /* 濁ってはいるが遠くまで見える */
+      } else {
+        scene.background = new THREE.Color('#0e1526');
+        scene.fog = new THREE.Fog('#0e1526', 48, 130);
+      }
+    }
+  } else step._under = false;
 
   tickWhistle(dt);
   updateTracers();
