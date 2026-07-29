@@ -283,7 +283,8 @@ https://（あなたのユーザー名）.github.io/chameleon-kakurenbo/
 | やりたいこと | 場所 |
 |---|---|
 | マップの追加・切りかえ | `MAPS` 配列と `buildMap()` |
-| 各マップの中身 | `buildSchool()` / `buildBackrooms()` / `buildOsaka()` |
+| 各マップの中身 | `buildSchool()` / `buildDotonbori()` / `buildAmusement()` |
+| 浮ける高さ（マップごと） | `MAPS[].ceil`（学校6 / 道頓堀9 / 遊園地27） |
 | 家具や壁を置くヘルパ | `box` `cyl` `sph` `flat` `wall` `floorAt` `desk` `schoolChair` `bookshelf` など（module 直下） |
 | 国旗 | `flagTexture()` / `flagBanner()` / `flagPole()` |
 | キャラの体型 | `PARTS`（頭は球、胴と手足はカプセル） |
