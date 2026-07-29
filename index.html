@@ -91,6 +91,17 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #poseTag.whistling{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
 #poseTag{position:absolute;left:max(12px,env(safe-area-inset-left));top:max(58px,calc(env(safe-area-inset-top) + 52px));
   font-size:11px;color:#9aa4bb;background:#0d1017cc;border:1px solid #2a3244;border-radius:10px;padding:5px 10px}
+#posePick{position:absolute;right:78px;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:6px;pointer-events:auto;
+  background:#0d1017ee;border:1px solid #2a3244;border-radius:14px;padding:7px;
+  box-shadow:0 10px 30px #0009;touch-action:none}
+#posePick button{display:flex;align-items:center;gap:8px;background:#1b212d;
+  border:1px solid #2e3646;border-radius:10px;padding:8px 12px;font-size:13px;
+  font-weight:600;white-space:nowrap;touch-action:none}
+#posePick button.on{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
+#posePick button span{font-size:17px}
+@media (max-width:760px){ #posePick{right:62px;padding:5px;gap:4px}
+  #posePick button{padding:7px 10px;font-size:12px} }
 #rightbtns{position:absolute;right:max(10px,env(safe-area-inset-right));top:56%;
   transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;pointer-events:auto}
 .rb{width:54px;height:54px;border-radius:16px;background:#141924e6;border:1px solid #2c3444;
@@ -191,10 +202,10 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnPaint" class="rb">🎨<i>ぬる</i></button>
     <button id="btnPick"  class="rb">💧<i>スポイト</i></button>
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
+    <div id="posePick" class="hidden"></div>
     <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
-    <button id="btnEmote" class="rb">👋<i>エモート</i></button>
     <button id="btnLeave" class="rb small">✕</button>
   </div>
   <div id="touch" class="hidden">
@@ -2390,13 +2401,6 @@ function Avatar(scene) {
   this.gun.visible = false;
   this.poseGroup.add(this.gun);
 
-  this.emote = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffd166 }));
-  this.emote.position.y = BODY_H + 0.28;
-  this.emote.visible = false;
-  this.root.add(this.emote);
-  this.emoteUntil = 0;
-
   /* めり込みすぎを通報された人の目印（鬼にだけ見える） */
   this.marker = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.62, 10),
     new THREE.MeshBasicMaterial({ color: 0xff3355 }));
@@ -2450,7 +2454,9 @@ Avatar.prototype.update = function (dt, snap) {
   const po = POSES[this.pose] || POSES[0];
   const tr = po.tr;
   const g = this.poseGroup;
-  const pk = 1 - Math.pow(0.0005, dt);          /* ポーズはグニャッと変形する */
+  /* ポーズはふだんグニャッと変形するが、snap のときは一発で決める
+     （ぶんしんや答え合わせの人形は毎フレーム更新しないので、補間だと途中で止まる） */
+  const pk = snap ? 1 : 1 - Math.pow(0.0005, dt);
   g.rotation.x += ((po.lie ? Math.PI / 2 : 0) - g.rotation.x) * pk;
   g.position.y += ((po.lie ? 0.26 : 0) - g.position.y) * pk;
 
@@ -2486,13 +2492,8 @@ Avatar.prototype.update = function (dt, snap) {
     this.gun.visible = true;      /* 寝そべっていても銃は持ったまま（撃てるので） */
   }
 
-  if (this.emote.visible && performance.now() > this.emoteUntil) this.emote.visible = false;
 };
 
-Avatar.prototype.showEmote = function () {
-  this.emote.visible = true;
-  this.emoteUntil = performance.now() + 1600;
-};
 Avatar.prototype.setVisible = function (v) { this.root.visible = v; };
 /** 答え合わせ用：壁ごしに、点滅して見えるようにする */
 Avatar.prototype.setXray = function (on, alpha) {
@@ -2738,7 +2739,7 @@ Net.prototype.join = function (code, name) {
     self.channel = self.client.channel('mc-room-' + self.code, {
       config: { broadcast: { self: false, ack: false }, presence: { key: self.id } }
     });
-    const evs = ['pose', 'skin', 'state', 'tag', 'emote', 'hello', 'shot', 'whistle', 'clone', 'cloneHit'];
+    const evs = ['pose', 'skin', 'state', 'tag', 'hello', 'shot', 'whistle', 'clone', 'cloneHit'];
     for (let i = 0; i < evs.length; i++) {
       (function (ev) {
         self.channel.on('broadcast', { event: ev }, function (m) { self.emit(ev, m.payload); });
@@ -2953,6 +2954,8 @@ document.addEventListener('visibilitychange', function () { if (document.hidden)
 
 function setPose(p) {
   me.pose = ((p % POSES.length) + POSES.length) % POSES.length;
+  const bs = $('posePick').children;
+  for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('on', i === me.pose);
   $('poseTag').textContent = 'ポーズ: ' + POSES[me.pose].name;
   $('btnPose').firstChild.nodeValue = POSES[me.pose].icon;
 }
@@ -2973,10 +2976,13 @@ addEventListener('keydown', function (e) {
   if (G.mode === 'menu') return;
   if (e.code === 'KeyF') togglePaint();
   else if (e.code === 'Space') { if (paint.open) doPick(); }   /* ペイント中の Space は 3D スポイト */
-  else if (e.code === 'KeyR') setPose(me.pose + 1);
+  else if (e.code === 'KeyR') showPosePick();
+  else if (e.code.indexOf('Digit') === 0) {          /* 1〜5 でポーズを直接えらぶ */
+    const n = +e.code.slice(5) - 1;
+    if (n >= 0 && n < POSES.length) { setPose(n); showPosePick(false); }
+  }
   else if (e.code === 'KeyC') putClone();
   else if (e.code === 'Digit5') toggleFree();
-  else if (e.code === 'KeyE' || e.code === 'Digit1') { myAvatar.showEmote(); net.send('emote', { id: net.id }); }
   else if (e.code === 'Escape' && paint.open) togglePaint();
 });
 addEventListener('keyup', function (e) { keys.delete(e.code); });
@@ -3129,7 +3135,27 @@ canvasEl.addEventListener('wheel', function (e) {
 
 $('btnPaint').onclick = togglePaint;
 $('btnPick').onclick = function () { if (canPaint()) doPick(); else toast('いまはスポイトできません'); };
-$('btnPose').onclick = function () { setPose(me.pose + 1); };
+(function () {                     /* ポーズは押すと一覧から選べる */
+  const box = $('posePick');
+  for (let i = 0; i < POSES.length; i++) {
+    (function (idx) {
+      const b = document.createElement('button');
+      b.innerHTML = '<span>' + POSES[idx].icon + '</span>' + POSES[idx].name;
+      b.onclick = function () { setPose(idx); showPosePick(false); };
+      box.appendChild(b);
+    })(i);
+  }
+})();
+function showPosePick(on) {
+  if (on === undefined) on = $('posePick').classList.contains('hidden');
+  $('posePick').classList.toggle('hidden', !on);
+  $('btnPose').classList.toggle('on', on);
+  if (on) {
+    const bs = $('posePick').children;
+    for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('on', i === me.pose);
+  }
+}
+$('btnPose').onclick = function () { showPosePick(); };
 function toggleFree() {
   if (paint.open) { toast('ペイント中は使えません'); return; }
   G.free = !G.free;
@@ -3151,7 +3177,6 @@ $('btnRole').onclick = function () {
   applyState();
   toast(G.soloRole === 'seeker' ? '鬼になりました（クリック／みつけた!で発砲）' : 'かくれる側にもどりました');
 };
-$('btnEmote').onclick = function () { myAvatar.showEmote(); net.send('emote', { id: net.id }); };
 function holdBtn(id, set) {
   const b = $(id);
   let pid = null;
@@ -3837,7 +3862,6 @@ net.on('whistle', function (p) {
   playWhistle(sp.pan, Math.max(0.12, sp.vol));
   addWhistleMark(p.x, p.z);
 });
-net.on('emote', function (p) { const a = remotes.get(p.id); if (a) a.showEmote(); });
 function remoteOf(id) {
   let av = remotes.get(id);
   if (!av) { av = new Avatar(scene); remotes.set(id, av); }
@@ -3922,6 +3946,7 @@ function enterGame() {
 }
 function leaveToTitle() {
   resetInput();
+  showPosePick(false);
   paint.close();
   me.inWait = false; curBounds = ARENA_BOUNDS;
   $('hud').classList.add('hidden');
