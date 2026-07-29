@@ -1541,8 +1541,8 @@ const SUPA_CDN = 'https://esm.sh/@supabase/supabase-js@2';   /* 新形式(sb_pub
    （上部の Connect ボタンからまとめてコピーするのが早いです）
 ===================================================================== */
 const DEFAULT_CFG = {
-  url: '',
-  key: ''
+  url: 'https://khxyujgmwbohmmpdsnlb.supabase.co',
+  key: 'sb_publishable_F5nuyUCq1P-AaXPriy31yA_ik-Zs07-'
 };
 
 function loadCfg() {
@@ -2426,7 +2426,9 @@ net.on('state', function (s) {
   if (net.isHost) return;
   G.phase = s.phase; G.remain = s.remain; G.roles = s.roles || {};
   G.dead = s.dead || {}; G.winner = s.winner; G.settings = s.settings || G.settings;
-  if (G.phase !== 'lobby' && G.phase !== 'result' && !$('scLobby').classList.contains('hidden')) enterGame();
+  /* ロビー画面以外にいても、試合が始まったら必ずゲームに入る */
+  if (G.mode === 'online' && G.phase !== 'lobby' && G.phase !== 'result' &&
+    $('hud').classList.contains('hidden')) enterGame();
   applyState();
 });
 net.on('tag', function (p) { if (net.isHost) applyTag(p.by, p.target); });
