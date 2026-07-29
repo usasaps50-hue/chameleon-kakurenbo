@@ -138,6 +138,11 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   top:max(52px,calc(env(safe-area-inset-top) + 46px));
   background:#123a2aee;border:1px solid #3f9a5e;color:#a8f0c4;font-size:12px;font-weight:700;
   padding:7px 14px;border-radius:12px;max-width:92vw;text-align:center}
+#clingTag{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 152px);
+  background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff;font-size:12px;font-weight:700;
+  padding:6px 13px;border-radius:12px;white-space:nowrap}
+@media (min-width:761px){ #clingTag{bottom:70px} }
 #diag{position:absolute;left:8px;top:8px;z-index:60;background:#000000cc;color:#8ef0a8;
   font:11px/1.5 ui-monospace,monospace;padding:8px 10px;border-radius:8px;white-space:pre;
   pointer-events:none;max-width:70vw}
@@ -223,6 +228,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnDash" class="mv">≫<i>走る</i></button>
     <button id="btnTag">みつけた!</button>
   </div>
+  <div id="clingTag" class="hidden">🧲 くっついています — このまま止まれます（走るで はなれる）</div>
   <div id="embedWarn" class="hidden"></div>
   <div id="freeBanner" class="hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
   <div id="diag" class="hidden"></div>
@@ -368,7 +374,10 @@ const ARENA = 72, HALF = ARENA / 2, WALL_H = 9;
 const PLAYER_R = 0.34;
 const EMBED_DEPTH = 0.26;
 const EMBED_SAFE = 0.07;
-const SUBSTEP = 0.1;
+/* 1歩の刻み。EMBED_SAFE より大きいと、押し戻す前に薄い壁を飛びこえてしまう */
+const SUBSTEP = 0.04;
+/* このすきま以内なら「くっついた」とみなして、空中でもその高さで止まれる */
+const CLING_GAP = 0.28;
 const IWALL_H = 5.2;
 const WAIT_X = 300;             /* 待機部屋の位置（校舎からじゅうぶん離す） */
 const ARENA_BOUNDS = { x0: -HALF, z0: -HALF, x1: HALF, z1: HALF };
@@ -2695,16 +2704,20 @@ function resolveCollision(solids, pos, feetY, R0) {
   pos.x = Math.max(b.x0 - e, Math.min(b.x1 + e, pos.x));
   pos.z = Math.max(b.z0 - e, Math.min(b.z1 + e, pos.z));
 
-  /* 2) いちばん深く入っている量から「体がどれだけ外に出ているか」を出す */
+  /* 2) いちばん深く入っている量から「体がどれだけ外に出ているか」を出す。
+        あわせて「何かにくっついているか」も見る（くっついていれば空中で止まれる） */
   let deepest = R, touching = false;
   for (let i = 0; i < solids.length; i++) {
     const s = solids[i];
-    if (s.top <= feetY + 0.25 || s.y0 > headY) continue;
+    if (s.y0 > headY) continue;
     const dx = Math.max(s.x0 - pos.x, pos.x - s.x1);
     const dz = Math.max(s.z0 - pos.z, pos.z - s.z1);
     const d = (dx > 0 || dz > 0) ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) : Math.max(dx, dz);
-    if (d < deepest) deepest = d;
-    if (d < R + 0.06) touching = true;
+    /* かくれ具合に数えるのは、体の高さにちゃんと重なっている物だけ */
+    if (s.top > feetY + 0.25 && d < deepest) deepest = d;
+    /* くっつくのは「足より上に出ている物」なら何でもいい。
+       木箱でも樽でもいすでも観覧車のゴンドラでも、横に張りついて浮いたまま止まれる */
+    if (s.top > feetY + 0.02 && d < R + CLING_GAP) touching = true;
   }
   return {
     exposure: Math.max(0, Math.min(1, (deepest + R) / (R * 2))),
@@ -4638,6 +4651,8 @@ function step(dt) {
   }
   updateWaitRoom();
   updateEmbedWarn();
+  /* 空中で何かに張りついているときだけ知らせる（地面に立っているときは出さない） */
+  $('clingTag').className = (!ghost && me.stuck && !me.onGround && !paint.open && !G.free) ? '' : 'hidden';
 
   /* ペイント中に Space 長押し＝3D スポイト */
   if (paint.open && keys.has('Space') && performance.now() - (doPick._t || 0) > 130) {
