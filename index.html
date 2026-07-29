@@ -183,6 +183,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnPaint" class="rb">🎨<i>ぬる</i></button>
     <button id="btnPick"  class="rb">💧<i>スポイト</i></button>
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
+    <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
     <button id="btnEmote" class="rb">👋<i>エモート</i></button>
     <button id="btnLeave" class="rb small">✕</button>
@@ -1603,7 +1604,7 @@ Net.prototype.join = function (code, name) {
     self.channel = self.client.channel('mc-room-' + self.code, {
       config: { broadcast: { self: false, ack: false }, presence: { key: self.id } }
     });
-    const evs = ['pose', 'skin', 'state', 'tag', 'emote', 'hello'];
+    const evs = ['pose', 'skin', 'state', 'tag', 'emote', 'hello', 'shot', 'whistle', 'clone', 'cloneHit'];
     for (let i = 0; i < evs.length; i++) {
       (function (ev) {
         self.channel.on('broadcast', { event: ev }, function (m) { self.emit(ev, m.payload); });
@@ -1778,11 +1779,11 @@ function updateEmbedWarn() {
   if (me.embedT <= 0) { el.className = 'hidden'; return; }
   if (me.exposed) {
     el.className = 'danger';
-    el.textContent = '⚠ めり込みすぎです — いまの位置が鬼に知らされています（体を3割以上出してください）';
+    el.textContent = '⚠ めり込みすぎです — いまの位置が鬼に知らされています（体を1割以上出してください）';
   } else {
     el.className = '';
     el.textContent = '⚠ 下の方にめり込みすぎです — あと ' + Math.ceil(REVEAL_SEC - me.embedT) +
-      ' 秒で鬼に場所が知らされます（体が30%以上出ていないとダメ）';
+      ' 秒で鬼に場所が知らされます（体が10%以上出ていないとダメ）';
   }
 }
 
@@ -1816,6 +1817,7 @@ addEventListener('keydown', function (e) {
   if (e.code === 'KeyF') togglePaint();
   else if (e.code === 'Space') { if (paint.open) doPick(); }   /* ペイント中の Space は 3D スポイト */
   else if (e.code === 'KeyR') setPose(me.pose + 1);
+  else if (e.code === 'KeyC') putClone();
   else if (e.code === 'KeyE' || e.code === 'Digit1') { myAvatar.showEmote(); net.send('emote', { id: net.id }); }
   else if (e.code === 'Escape' && paint.open) togglePaint();
 });
@@ -1838,6 +1840,7 @@ function paintAtScreen(x, y, isStart) {
   if (!paint.open || G.view !== 1) return false;
   paintNdc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1);
   paintRay.setFromCamera(paintNdc, camera);
+  myAvatar.root.updateWorldMatrix(false, true);
   const hits = paintRay.intersectObjects(myAvatar.meshes, false);
   if (!hits.length || !hits[0].uv) return false;
   const uv = hits[0].uv;
@@ -1956,6 +1959,7 @@ canvasEl.addEventListener('wheel', function (e) {
 $('btnPaint').onclick = togglePaint;
 $('btnPick').onclick = function () { if (canPaint()) doPick(); else toast('いまはスポイトできません'); };
 $('btnPose').onclick = function () { setPose(me.pose + 1); };
+$('btnClone').onclick = putClone;
 $('btnRole').onclick = function () {
   G.soloRole = G.soloRole === 'seeker' ? 'hider' : 'seeker';
   if (paint.open) paint.close();
@@ -2129,14 +2133,19 @@ function updateTracers() {
 /* =====================================================================
    6.7 口笛レーダー（右上・4分割）
 ===================================================================== */
-const whistleMarks = [];   /* {dx, dz, until}  ワールド座標での向き */
-const WHISTLE_SHOW = 1000; /* 印は 1 秒だけ */
+const whistleMarks = [];   /* {dx, dz, until, kind}  ワールド座標での向き */
+const WHISTLE_SHOW = 1000; /* 口笛の印は 1 秒 */
+const SHOT_SHOW = 1800;    /* 銃声の印は少し長め */
 
-function addWhistleMark(x, z) {
+function addMark(x, z, kind) {
   const dx = x - me.pos.x, dz = z - me.pos.z;
   const d = Math.hypot(dx, dz) || 1;
-  whistleMarks.push({ dx: dx / d, dz: dz / d, until: performance.now() + WHISTLE_SHOW });
+  whistleMarks.push({
+    dx: dx / d, dz: dz / d, kind: kind || 'whistle',
+    until: performance.now() + (kind === 'shot' ? SHOT_SHOW : WHISTLE_SHOW)
+  });
 }
+function addWhistleMark(x, z) { addMark(x, z, 'whistle'); }
 
 function drawRadar() {
   const cv = $('radar');
@@ -2146,7 +2155,7 @@ function drawRadar() {
   while (whistleMarks.length && whistleMarks[0].until < now) whistleMarks.shift();
 
   /* いま光っているマスと、正確な向き */
-  const lit = [false, false, false, false];
+  const lit = [null, null, null, null];
   const dots = [];
   const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
   const rx = -Math.cos(me.yaw), rz = Math.sin(me.yaw);
@@ -2156,8 +2165,9 @@ function drawRadar() {
     const r = w.dx * rx + w.dz * rz;      /* 左右 */
     const ang = Math.atan2(r, f);         /* 0=正面 +=右 */
     const q = (r >= 0 ? 1 : 0) + (f >= 0 ? 0 : 2);   /* 0:左前 1:右前 2:左後 3:右後 */
-    lit[q] = true;
-    dots.push({ ang: ang, a: (w.until - now) / WHISTLE_SHOW });
+    if (lit[q] !== 'shot') lit[q] = w.kind;
+    const span = w.kind === 'shot' ? SHOT_SHOW : WHISTLE_SHOW;
+    dots.push({ ang: ang, a: (w.until - now) / span, kind: w.kind });
   }
 
   g.clearRect(0, 0, S, S);
@@ -2165,8 +2175,10 @@ function drawRadar() {
   const cells = [[gap, gap], [C + gap / 2, gap], [gap, C + gap / 2], [C + gap / 2, C + gap / 2]];
   const cw = C - gap * 1.5;
   for (let i = 0; i < 4; i++) {
-    g.fillStyle = lit[i] ? 'rgba(255,86,102,.85)' : 'rgba(255,255,255,.07)';
-    g.strokeStyle = lit[i] ? '#ff8894' : 'rgba(255,255,255,.16)';
+    g.fillStyle = lit[i] === 'shot' ? 'rgba(255,190,60,.85)'
+      : lit[i] ? 'rgba(255,86,102,.85)' : 'rgba(255,255,255,.07)';
+    g.strokeStyle = lit[i] === 'shot' ? '#ffd98a'
+      : lit[i] ? '#ff8894' : 'rgba(255,255,255,.16)';
     g.lineWidth = 1;
     const x = cells[i][0], y = cells[i][1];
     g.beginPath();
@@ -2188,7 +2200,7 @@ function drawRadar() {
     g.globalAlpha = Math.max(0, d.a);
     g.fillStyle = '#fff';
     g.beginPath(); g.arc(px, py, 4.5, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#ff5566'; g.lineWidth = 2;
+    g.strokeStyle = d.kind === 'shot' ? '#ffbe3c' : '#ff5566'; g.lineWidth = 2;
     g.beginPath(); g.arc(px, py, 7.5, 0, Math.PI * 2); g.stroke();
     g.globalAlpha = 1;
   }
@@ -2213,15 +2225,21 @@ function setAimRay() {
 function aimResult() {
   setAimRay();
   const objs = [world.group];
-  const byMesh = new Map();
+  const byMesh = new Map(), cloneOf = new Map();
   remotes.forEach(function (av, id) {
     if (G.dead[id] || G.roles[id] === 'seeker') return;
+    av.root.updateWorldMatrix(false, true);      /* 位置を確定させてから当てる */
     for (let i = 0; i < av.meshes.length; i++) { objs.push(av.meshes[i]); byMesh.set(av.meshes[i], id); }
+  });
+  clones.forEach(function (c, cid) {
+    c.av.root.updateWorldMatrix(false, true);
+    for (let i = 0; i < c.av.meshes.length; i++) { objs.push(c.av.meshes[i]); cloneOf.set(c.av.meshes[i], cid); }
   });
   const hits = ray.intersectObjects(objs, true);
   for (let i = 0; i < hits.length; i++) {
     const h = hits[i];
     if (byMesh.has(h.object)) return { id: byMesh.get(h.object), point: h.point };
+    if (cloneOf.has(h.object)) return { id: null, clone: cloneOf.get(h.object), point: h.point };
     return { id: null, point: h.point };            /* 壁などが先に当たった */
   }
   const p = ray.ray.at(ray.far, new THREE.Vector3());
@@ -2248,6 +2266,12 @@ function tryTag() {
     x: +m.x.toFixed(2), y: +m.y.toFixed(2), z: +m.z.toFixed(2),
     tx: +r.point.x.toFixed(2), ty: +r.point.y.toFixed(2), tz: +r.point.z.toFixed(2)
   });
+  if (r.clone) {                       /* ぶんしんを撃った＝本人は無事 */
+    removeClone(r.clone);
+    net.send('cloneHit', { cid: r.clone });
+    toast('ぶんしんだった！');
+    return;
+  }
   if (!r.id) { toast('はずれ！'); return; }
   net.send('tag', { by: net.id, target: r.id });
   if (net.isHost) applyTag(net.id, r.id);
@@ -2283,6 +2307,74 @@ function tickWhistle(dt) {
 }
 
 /* =====================================================================
+   7.6 ぶんしん（クローン）
+   置いた場所に自分のコピーが残る。撃たれても本人は無事。
+===================================================================== */
+const MAX_CLONES = 3;
+const clones = new Map();          /* cid -> { av, owner } */
+
+function skinCanvasOf(ownerId) {
+  if (ownerId === net.id) return myAvatar.canvas;
+  const av = remotes.get(ownerId);
+  return av ? av.canvas : null;
+}
+
+function spawnClone(cid, owner, x, y, z, ry, pose) {
+  if (clones.has(cid)) return;
+  const av = new Avatar(scene);
+  av.setScale(HIDER_SCALE);
+  av.setPose(x, y, z, ry, false, pose);
+  av.update(0.016, true);
+  const src = skinCanvasOf(owner);
+  if (src) { av.ctx.clearRect(0, 0, SKIN_W, SKIN_H); av.ctx.drawImage(src, 0, 0); av.texture.needsUpdate = true; }
+  clones.set(cid, { av: av, owner: owner });
+}
+
+function removeClone(cid, quiet) {
+  const c = clones.get(cid);
+  if (!c) return;
+  if (!quiet) {
+    const p = c.av.root.position;
+    const sp = spatial(p.x, p.z);
+    playWhistle(sp.pan, Math.max(0.15, sp.vol * 0.7));
+  }
+  c.av.dispose(scene);
+  clones.delete(cid);
+}
+
+function clearClones() {
+  clones.forEach(function (c) { c.av.dispose(scene); });
+  clones.clear();
+}
+
+function myCloneCount() {
+  let n = 0;
+  clones.forEach(function (c) { if (c.owner === net.id) n++; });
+  return n;
+}
+
+function canClone() {
+  if (amDead() || myRole() === 'seeker') return false;
+  if (G.mode === 'solo') return true;
+  return G.phase === 'prep' || G.phase === 'hunt';
+}
+
+function putClone() {
+  if (!canClone()) { toast('いまは出せません'); return; }
+  if (myCloneCount() >= MAX_CLONES) { toast('ぶんしんは ' + MAX_CLONES + ' 体までです'); return; }
+  putClone._n = (putClone._n || 0) + 1;
+  const cid = net.id + '-' + Date.now().toString(36) + '-' + putClone._n;
+  const d = {
+    cid: cid, owner: net.id,
+    x: +me.pos.x.toFixed(2), y: +me.pos.y.toFixed(2), z: +me.pos.z.toFixed(2),
+    r: +me.yaw.toFixed(2), p: me.pose
+  };
+  spawnClone(cid, net.id, d.x, d.y, d.z, d.r, d.p);
+  net.send('clone', d);
+  toast('ぶんしんを置きました（' + myCloneCount() + '/' + MAX_CLONES + '）');
+}
+
+/* =====================================================================
    8. 進行（ホストが正）
 ===================================================================== */
 let hostTimer = null;
@@ -2295,6 +2387,7 @@ function hostBroadcast() {
   net.send('state', { phase: G.phase, remain: G.remain, roles: G.roles, dead: G.dead, winner: G.winner, settings: G.settings });
 }
 function hostStart() {
+  clearClones();
   const ids = Array.from(net.players.keys());
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
   ids.sort(function () { return Math.random() - 0.5; });
@@ -2354,6 +2447,7 @@ function applyState() {
   $('btnPick').classList.toggle('hidden', !canPaint());
   $('btnTag').classList.toggle('hidden',
     !(isTouch && role === 'seeker' && !dead && (solo || G.phase === 'hunt')));
+  $('btnClone').classList.toggle('hidden', !canClone());
   $('btnRole').classList.toggle('hidden', !solo);
   $('btnRole').firstChild.nodeValue = role === 'seeker' ? '🎨' : '👹';
   $('btnRole').querySelector('i').textContent = role === 'seeker' ? 'かくれる' : '鬼になる';
@@ -2437,7 +2531,14 @@ net.on('shot', function (p) {
   const sp = spatial(p.x, p.z);
   playBang(sp.pan, sp.vol);
   spawnTracer(p.x, p.y, p.z, p.tx, p.ty, p.tz);
+  addMark(p.x, p.z, 'shot');                 /* レーダーに黄色い印 */
+  if (sp.dist < 60) toast('🔫 発砲音！' + (sp.dist < 18 ? '（すぐ近く）' : ''), 1600);
 });
+net.on('clone', function (p) {
+  if (p.owner === net.id) return;
+  spawnClone(p.cid, p.owner, p.x, p.y, p.z, p.r, p.p);
+});
+net.on('cloneHit', function (p) { removeClone(p.cid); });
 net.on('whistle', function (p) {
   if (p.id === net.id) return;
   const sp = spatial(p.x, p.z);
@@ -2534,6 +2635,7 @@ function leaveToTitle() {
   if (hostTimer) { clearInterval(hostTimer); hostTimer = null; }
   remotes.forEach(function (av) { av.dispose(scene); });
   remotes.clear();
+  clearClones();
   net.leave();
   G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.dead = {}; G.winner = null;
   show('scTitle');
@@ -2621,7 +2723,7 @@ $('cfgSave').onclick = function () {
    12. メインループ
 ===================================================================== */
 const GRAVITY = 17, CEIL_Y = 6.0;
-const EMBED_MIN = 0.30, REVEAL_SEC = 10;
+const EMBED_MIN = 0.10, REVEAL_SEC = 10;
 const camDir = new THREE.Vector3(), lookAt = new THREE.Vector3();
 const tpRay = new THREE.Raycaster();
 let prev = performance.now();
