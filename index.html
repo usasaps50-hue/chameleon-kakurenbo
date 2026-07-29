@@ -54,7 +54,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .pl .me{margin-left:auto;font-size:10px;color:#7fd48a}
 .rr canvas{width:22px;height:44px;border-radius:5px;background:#fff;flex:none}
 .rr .tagres{margin-left:auto;font-size:11px}
-.settingsGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
+.settingsGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0 4px}
 .settingsGrid label{margin:0;font-size:11px;text-align:center}
 .settingsGrid select{width:100%;margin-top:4px;padding:8px 4px;border-radius:9px;
   background:#0f131b;color:#fff;border:1px solid #2c3345;font-size:13px;text-align:center}
@@ -240,6 +240,9 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <div class="card">
       <h1>カメレオン<br><span>かくれんぼ</span></h1>
       <p class="sub">まっ白な体に絵をかいて、背景に溶けこめ。</p>
+      <div class="joinrow" style="margin-bottom:4px">
+        <select id="soloMap" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px"></select>
+      </div>
       <button class="big primary" id="btnSolo">ひとりで練習（お絵かき）</button>
       <button class="big" id="btnCreate">部屋をつくる</button>
       <div class="joinrow">
@@ -274,6 +277,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <p class="sub">このコードを友だちに伝えてね</p>
       <div id="playerList"></div>
       <div class="settingsGrid" id="hostSettings">
+        <label>マップ<select id="setMap"></select></label>
         <label>鬼の人数<select id="setSeekers"><option>1</option><option>2</option><option>3</option></select></label>
         <label>じゅんび<select id="setPrep"><option value="45">45秒</option><option value="60" selected>60秒</option><option value="90">90秒</option><option value="120">120秒</option></select></label>
         <label>さがす<select id="setHunt"><option value="120">2分</option><option value="180" selected>3分</option><option value="240">4分</option></select></label>
@@ -624,24 +628,12 @@ function sandTex() {
 /* =====================================================================
    マップ：学校
 ===================================================================== */
-function buildWorld(scene) {
-  const rng = makeRng(20260610);
-  const solids = [];
-  const blockers = [];        /* カメラが避けるのは壁だけ（家具では寄せない） */
-  const group = new THREE.Group();
-  scene.add(group);
-
-  const TEX = {
-    wallIn: wallTex('#efe8da', '#b9a68c'),
-    wallCorr: wallTex('#e7eadf', '#a9b39c'),
-    win: windowTex(),
-    lockerA: lockerTex(1), lockerB: lockerTex(9),
-    shoes: shoeBoxTex(),
-    board: boardTex(),
-    clock: clockTex(),
-    books: booksTex(),
-    wood: woodFloorTex(), lino: linoFloorTex(), grass: grassTex(), sand: sandTex()
-  };
+/* =====================================================================
+   マップ組み立ての共通部分
+   ヘルパはここで宣言した group / solids / blockers に書きこむ。
+   マップを切りかえるときは buildMap() がこれらを差しかえる。
+===================================================================== */
+let group = null, solids = null, blockers = null, TEX = null, rng = null;
 
   function addSolid(x, z, sx, sz, top, ry) {
     let ex, ez;
@@ -666,7 +658,14 @@ function buildWorld(scene) {
     if (!noSolid) addSolid(x, z, r * 2, r * 2, y + h);
     return m;
   }
-  function sph(x, y, z, r, color, noSolid, detail) {
+  function taper(x, y, z, rTop, rBot, h, color) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 12), mat(color));
+  m.position.set(x, y + h / 2, z);
+  group.add(m);
+  addSolid(x, z, rBot * 2, rBot * 2, y + h);
+  return m;
+}
+function sph(x, y, z, r, color, noSolid, detail) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(r, detail || 12, (detail || 12) - 3), mat(color));
     m.position.set(x, y, z);
     group.add(m);
@@ -834,6 +833,60 @@ function buildWorld(scene) {
     }
   }
 
+
+function initTextures() {
+  rng = makeRng(20260610);
+  TEX = {
+    wallIn: wallTex('#efe8da', '#b9a68c'),
+    wallCorr: wallTex('#e7eadf', '#a9b39c'),
+    win: windowTex(),
+    lockerA: lockerTex(1), lockerB: lockerTex(9),
+    shoes: shoeBoxTex(),
+    board: boardTex(),
+    clock: clockTex(),
+    books: booksTex(),
+    wood: woodFloorTex(), lino: linoFloorTex(), grass: grassTex(), sand: sandTex()
+  };
+
+}
+
+/* --------- どのマップにも付いてくる、鬼の待機部屋 --------- */
+function buildWaitRoom() {
+  /* =================== 待機部屋（鬼が準備時間をすごす所） =================== */
+  const swatchTex = canvasTex(512, 256, function (g, w, h) {
+    const cols = ['#ffffff','#f2e6c8','#e0c14a','#d98b3f','#c85a54','#b05f96','#7a5fb0','#4f6fb0',
+                  '#4a9ab5','#4f9e6a','#8fbf6a','#a2705a','#8f96a3','#5a6172','#3c4250','#111418'];
+    const cw = w / 8, ch = h / 2;
+    for (let i = 0; i < 16; i++) {
+      g.fillStyle = cols[i];
+      g.fillRect((i % 8) * cw + 4, Math.floor(i / 8) * ch + 4, cw - 8, ch - 8);
+    }
+  });
+  const waitSign = canvasTex(512, 128, function (g, w, h) {
+    g.fillStyle = '#f4f1e6'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#7d6a4d'; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8);
+    g.fillStyle = '#25303a'; g.font = 'bold 62px ' + JPFONT;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('まちあい室', w / 2, h / 2 + 3);
+  });
+  floorAt(WAIT_X - 7, -7, WAIT_X + 7, 7, TEX.wood, 3.2);
+  wall(WAIT_X, -7, 15, 0, TEX.wallIn, 4.4);
+  wall(WAIT_X, 7, 15, 0, TEX.wallIn, 4.4);
+  wall(WAIT_X - 7, 0, 15, Math.PI / 2, TEX.wallIn, 4.4);
+  wall(WAIT_X + 7, 0, 15, Math.PI / 2, TEX.wallIn, 4.4);
+  flat(WAIT_X, 1.9, -5.95, 11, 2.4, 0, 0, swatchTex);           /* 色みほんの壁（スポイト用） */
+  flat(WAIT_X, 3.6, -5.95, 4.4, 1.1, 0, 0, waitSign);
+  flat(WAIT_X, 2.6, 5.95, 1.3, 1.3, 0, 0, TEX.clock);
+  bench(WAIT_X - 4.5, 4.5, Math.PI); bench(WAIT_X + 4.5, 4.5, Math.PI);
+  lockerBank(WAIT_X - 5.5, 6.0, 0, 4, 'lockerA');
+  desk(WAIT_X + 3.5, 0, Math.PI); schoolChair(WAIT_X + 3.5, -1.1, 0);
+}
+
+
+/* =====================================================================
+   マップ1: 学校
+===================================================================== */
+function buildSchool() {
   /* =================== 床 =================== */
   const yard = new THREE.Mesh(new THREE.PlaneGeometry(ARENA, ARENA),
     new THREE.MeshLambertMaterial({ map: (function () { const t = TEX.grass.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(18, 18); return t; })() }));
@@ -1026,42 +1079,10 @@ function buildWorld(scene) {
   shoeRack(34, 27, Math.PI / 2, 12);
   flat(28, 3.4, 34.4, 4, 2.2, 0, 0, TEX.board);
 
-  /* =================== 待機部屋（鬼が準備時間をすごす所） =================== */
-  const swatchTex = canvasTex(512, 256, function (g, w, h) {
-    const cols = ['#ffffff','#f2e6c8','#e0c14a','#d98b3f','#c85a54','#b05f96','#7a5fb0','#4f6fb0',
-                  '#4a9ab5','#4f9e6a','#8fbf6a','#a2705a','#8f96a3','#5a6172','#3c4250','#111418'];
-    const cw = w / 8, ch = h / 2;
-    for (let i = 0; i < 16; i++) {
-      g.fillStyle = cols[i];
-      g.fillRect((i % 8) * cw + 4, Math.floor(i / 8) * ch + 4, cw - 8, ch - 8);
-    }
-  });
-  const waitSign = canvasTex(512, 128, function (g, w, h) {
-    g.fillStyle = '#f4f1e6'; g.fillRect(0, 0, w, h);
-    g.strokeStyle = '#7d6a4d'; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8);
-    g.fillStyle = '#25303a'; g.font = 'bold 62px ' + JPFONT;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('まちあい室', w / 2, h / 2 + 3);
-  });
-  floorAt(WAIT_X - 7, -7, WAIT_X + 7, 7, TEX.wood, 3.2);
-  wall(WAIT_X, -7, 15, 0, TEX.wallIn, 4.4);
-  wall(WAIT_X, 7, 15, 0, TEX.wallIn, 4.4);
-  wall(WAIT_X - 7, 0, 15, Math.PI / 2, TEX.wallIn, 4.4);
-  wall(WAIT_X + 7, 0, 15, Math.PI / 2, TEX.wallIn, 4.4);
-  flat(WAIT_X, 1.9, -5.95, 11, 2.4, 0, 0, swatchTex);           /* 色みほんの壁（スポイト用） */
-  flat(WAIT_X, 3.6, -5.95, 4.4, 1.1, 0, 0, waitSign);
-  flat(WAIT_X, 2.6, 5.95, 1.3, 1.3, 0, 0, TEX.clock);
-  bench(WAIT_X - 4.5, 4.5, Math.PI); bench(WAIT_X + 4.5, 4.5, Math.PI);
-  lockerBank(WAIT_X - 5.5, 6.0, 0, 4, 'lockerA');
-  desk(WAIT_X + 3.5, 0, Math.PI); schoolChair(WAIT_X + 3.5, -1.1, 0);
-
-  /* =================== ライト =================== */
-  scene.add(new THREE.AmbientLight(0xffffff, 0.86));
-  const dl = new THREE.DirectionalLight(0xffffff, 0.24);
-  dl.position.set(30, 50, 20);
-  scene.add(dl);
   scene.background = new THREE.Color('#bcd6e8');
   scene.fog = new THREE.Fog('#bcd6e8', 78, 175);
+  amb.intensity = 0.86; sun.intensity = 0.24;
+
 
   const spawns = [
     [-24, -28], [-16, -20], [-30, -18], [-6, -28], [2, -20], [8, -30],
@@ -1071,7 +1092,361 @@ function buildWorld(scene) {
     [-30, 16], [-6, 16], [14, 16], [30, 16],
     [-28, 24], [-20, 30], [-8, 28], [8, 22], [16, 30], [26, 22], [33, 32]
   ];
-  return { group: group, solids: solids, spawns: spawns, blockers: blockers };
+  return spawns;
+}
+
+
+/* =====================================================================
+   マップ2: バックルーム
+   どこまでも続く黄色い部屋。壁紙の模様に溶けこむのがカギ。
+===================================================================== */
+function backroomsWallTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#d8c56a'; g.fillRect(0, 0, w, h);
+    /* 縦のストライプ壁紙 */
+    for (let x = 0; x < w; x += 16) {
+      g.fillStyle = (x / 16) % 2 ? 'rgba(255,255,255,.07)' : 'rgba(120,95,30,.10)';
+      g.fillRect(x, 0, 8, h);
+    }
+    /* しみ・汚れ */
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = 'rgba(120,95,30,' + (0.04 + Math.random() * 0.09).toFixed(3) + ')';
+      g.beginPath();
+      g.ellipse(Math.random() * w, Math.random() * h, 8 + Math.random() * 26, 6 + Math.random() * 20, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    /* 巾木 */
+    g.fillStyle = '#b9a44e'; g.fillRect(0, h - 18, w, 18);
+    g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, h - 20, w, 3);
+  });
+}
+function backroomsCarpetTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#c9b25c'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2600; i++) {
+      g.fillStyle = ['rgba(150,125,50,.5)', 'rgba(220,200,120,.45)', 'rgba(110,90,35,.35)'][i % 3];
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 3);
+    }
+    for (let i = 0; i < 8; i++) {
+      g.fillStyle = 'rgba(90,72,28,.10)';
+      g.beginPath();
+      g.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 40, 16 + Math.random() * 30, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  });
+}
+function ceilingTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#e6dfc0'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(120,110,80,.35)'; g.lineWidth = 3;
+    for (let i = 0; i <= 4; i++) {
+      g.beginPath(); g.moveTo(i * w / 4, 0); g.lineTo(i * w / 4, h); g.stroke();
+      g.beginPath(); g.moveTo(0, i * h / 4); g.lineTo(w, i * h / 4); g.stroke();
+    }
+    for (let i = 0; i < 200; i++) {
+      g.fillStyle = 'rgba(140,130,100,.25)';
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+  });
+}
+
+function buildBackrooms() {
+  const W = 62, H = 4.2;
+  const wallT = backroomsWallTex(), carpet = backroomsCarpetTex(), ceil = ceilingTex();
+
+  /* 床と天井 */
+  flat(0, 0.01, 0, W * 2, W * 2, 0, -Math.PI / 2, carpet, [W / 2.2, W / 2.2]);
+  flat(0, H, 0, W * 2, W * 2, 0, Math.PI / 2, ceil, [W / 3.2, W / 3.2]);
+
+  /* 外周 */
+  const half = W;
+  const dirs = [[0, -half, 0], [0, half, Math.PI], [-half, 0, Math.PI / 2], [half, 0, -Math.PI / 2]];
+  for (let i = 0; i < 4; i++) {
+    flat(dirs[i][0], H / 2, dirs[i][1], W * 2, H, dirs[i][2], 0, wallT, [W * 2 / 3.5, 1]);
+  }
+  const t = 1.2;
+  solids.push({ x0: -half - t, z0: -half - t, x1: half + t, z1: -half, top: H });
+  solids.push({ x0: -half - t, z0: half, x1: half + t, z1: half + t, top: H });
+  solids.push({ x0: -half - t, z0: -half - t, x1: -half, z1: half + t, top: H });
+  solids.push({ x0: half, z0: -half - t, x1: half + t, z1: half + t, top: H });
+
+  /* 迷路のような仕切り。同じ壁紙なので、どこにでも化けられる */
+  const R = makeRng(777001);
+  function seg(x, z, len, vert) {
+    const th = 1.4;
+    const sx = vert ? th : len, sz = vert ? len : th;
+    const m = box(x, 0, z, sx, H, sz, '#c9b558', 0, true);
+    blockers.push(m);
+    const off = th / 2 + 0.01;
+    const rep = [len / 3.5, 1];
+    flat(x + (vert ? off : 0), H / 2, z + (vert ? 0 : off), len, H, vert ? Math.PI / 2 : 0, 0, wallT, rep);
+    flat(x - (vert ? off : 0), H / 2, z - (vert ? 0 : off), len, H, vert ? Math.PI / 2 : 0, 0, wallT, rep);
+    addSolid(x, z, sx, sz, H);
+  }
+  /* 12m 間隔のグリッドに、ところどころ通路をあけて壁を立てる */
+  const step = 12.4;
+  for (let gx = -4; gx <= 4; gx++) {
+    for (let gz = -4; gz <= 4; gz++) {
+      const cx = gx * step, cz = gz * step;
+      if (Math.abs(cx) > half - 6 || Math.abs(cz) > half - 6) continue;
+      if (R() < 0.72) {
+        const len = step * (0.5 + R() * 0.35);
+        seg(cx, cz - step / 2, len, false);
+      }
+      if (R() < 0.72) {
+        const len = step * (0.5 + R() * 0.35);
+        seg(cx - step / 2, cz, len, true);
+      }
+    }
+  }
+
+  /* 蛍光灯（天井の四角い明かり） */
+  for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) {
+    const cx = gx * step, cz = gz * step;
+    if (Math.abs(cx) > half - 4 || Math.abs(cz) > half - 4) continue;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.7),
+      new THREE.MeshBasicMaterial({ color: 0xfff6d0, side: THREE.DoubleSide }));
+    m.position.set(cx, H - 0.03, cz);
+    m.rotation.x = Math.PI / 2;
+    group.add(m);
+  }
+
+  /* まれに置いてある小物（隠れる目印にもなる） */
+  for (let i = 0; i < 16; i++) {
+    const x = (R() - 0.5) * (W * 1.7), z = (R() - 0.5) * (W * 1.7);
+    if (R() < 0.5) {
+      box(x, 0, z, 0.9, 0.9, 0.9, ['#c9b558', '#b9a44e', '#d8c56a'][Math.floor(R() * 3)]);
+    } else {
+      cyl(x, 0, z, 0.42, 1.5, '#b3a04c', 12);       /* パイプ */
+    }
+  }
+  /* 出口っぽい非常口サイン */
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    flat(Math.cos(a) * (half - 1.4), 2.9, Math.sin(a) * (half - 1.4), 1.6, 0.7,
+      Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? Math.PI / 2 : 0, 0,
+      canvasTex(128, 64, function (g, w, h) {
+        g.fillStyle = '#1f7a3a'; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#eaf7ec'; g.font = 'bold 30px ' + JPFONT;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('非常口', w / 2, h / 2);
+      }));
+  }
+
+  scene.background = new THREE.Color('#c7b463');
+  scene.fog = new THREE.Fog('#c7b463', 24, 82);
+  amb.intensity = 1.0; sun.intensity = 0.06;
+
+  const spawns = [];
+  for (let i = 0; i < 26; i++) {
+    spawns.push([(Math.random() - 0.5) * (W * 1.7), (Math.random() - 0.5) * (W * 1.7)]);
+  }
+  return spawns;
+}
+
+/* =====================================================================
+   マップ3: 大阪の路地
+   看板・自販機・シャッター・ゴミ袋。色数が多いので擬態の腕が出る。
+===================================================================== */
+/** 縦看板 (vertical=true) と横看板。文字数に合わせて大きさを決める */
+function signTexOsaka(text, bg, fg, vertical) {
+  const n = text.length;
+  const W = vertical ? 192 : Math.max(256, n * 120);
+  const H = vertical ? Math.max(256, n * 150) : 160;
+  return canvasTex(W, H, function (g, w, h) {
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 7; g.strokeRect(7, 7, w - 14, h - 14);
+    g.fillStyle = fg;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (vertical) {
+      const size = Math.min(w * 0.68, h / (n + 0.35));
+      g.font = 'bold ' + Math.floor(size) + 'px ' + JPFONT;
+      for (let i = 0; i < n; i++) g.fillText(text[i], w / 2, h * (i + 0.62) / (n + 0.24));
+    } else {
+      g.font = 'bold ' + Math.floor(Math.min(h * 0.62, w / (n + 0.4))) + 'px ' + JPFONT;
+      g.fillText(text, w / 2, h / 2 + 2);
+    }
+  });
+}
+function shutterTex(color) {
+  return canvasTex(128, 128, function (g, w, h) {
+    g.fillStyle = color; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 8) {
+      g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(0, y, w, 2);
+      g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(0, y + 3, w, 2);
+    }
+  });
+}
+function vendingTex() {
+  return canvasTex(256, 384, function (g, w, h) {
+    g.fillStyle = '#c8322e'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f2f2f2'; g.fillRect(10, 10, w - 20, h * 0.52);
+    const cols = ['#e8622a', '#2f7fc4', '#3f9a4f', '#e0b62f', '#8a4fa8', '#d4443f'];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+      g.fillStyle = cols[(r * 4 + c) % cols.length];
+      g.fillRect(20 + c * (w - 40) / 4, 22 + r * (h * 0.52 - 24) / 3, (w - 40) / 4 - 8, (h * 0.52 - 24) / 3 - 8);
+    }
+    g.fillStyle = '#1c1c1c'; g.fillRect(14, h * 0.58, w - 28, h * 0.16);
+    g.fillStyle = '#f5d94a'; g.font = 'bold 26px ' + JPFONT;
+    g.textAlign = 'center'; g.fillText('¥120', w / 2, h * 0.68);
+    g.fillStyle = '#2a2a2a'; g.fillRect(24, h * 0.80, w - 48, h * 0.14);
+  });
+}
+function asphaltTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#4e5157'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 1800; i++) {
+      g.fillStyle = ['rgba(255,255,255,.06)', 'rgba(0,0,0,.18)', 'rgba(160,160,160,.10)'][i % 3];
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+  });
+}
+
+function buildOsaka() {
+  const W = 56, half = W / 2;
+  const road = asphaltTex();
+  flat(0, 0.01, 0, W, W, 0, -Math.PI / 2, road, [W / 3, W / 3]);
+
+  /* 通りに沿った建物（両側） */
+  const SHOP = [
+    ['たこ焼', '#e03a2f', '#fff3c4'], ['ラーメン', '#f0b62a', '#3a2410'],
+    ['居酒屋', '#c0392b', '#ffe9b0'], ['喫茶', '#2f6fb0', '#f2f7ff'],
+    ['ゲーム', '#7a3fb0', '#f6e9ff'], ['薬', '#2f9a5a', '#eafff2'],
+    ['カラオケ', '#e0562a', '#fff0e0'], ['本', '#3f7fa8', '#eef9ff']
+  ];
+  function building(x, z, w, d, hgt, faceZ, idx) {
+    const base = ['#8a8f96', '#9aa0a8', '#7e848c', '#a6a29a'][idx % 4];
+    box(x, 0, z, w, hgt, d, base);
+    const sh = shutterTex(['#7d8896', '#8d7f6c', '#6f7d88', '#95867a'][idx % 4]);
+    const off = d / 2 + 0.02;
+    flat(x, 1.5, z + (faceZ > 0 ? off : -off), w * 0.8, 3.0, 0, 0, sh, [w * 0.8 / 2, 1]);
+    const s = SHOP[idx % SHOP.length];
+    /* 縦看板 */
+    flat(x + w * 0.42, 4.2, z + (faceZ > 0 ? off + 0.5 : -off - 0.5), 1.5, 4.4, 0, 0,
+      signTexOsaka(s[0], s[1], s[2], true));
+    box(x + w * 0.42, 2.0, z + (faceZ > 0 ? off + 0.5 : -off - 0.5), 1.5, 4.4, 0.35, s[1], 0, false);
+    /* 横看板 */
+    flat(x - w * 0.1, 3.4, z + (faceZ > 0 ? off : -off), w * 0.55, 1.1, 0, 0,
+      signTexOsaka(s[0], s[2], s[1]));
+  }
+  for (let i = 0; i < 5; i++) {
+    building(-22 + i * 11, -18, 10, 9, 7 + (i % 3), 1, i);
+    building(-22 + i * 11, 18, 10, 9, 7 + ((i + 1) % 3), -1, i + 3);
+  }
+  /* 突きあたりの大きなビル */
+  box(0, 0, -26.5, 44, 9, 7, '#7e848c');
+  flat(0, 5.2, -22.9, 16, 5, 0, 0, signTexOsaka('大阪', '#d4342c', '#ffe9a8'));
+  box(0, 0, 26.5, 44, 9, 7, '#8a8f96');
+  flat(0, 5.2, 22.9, 14, 4.4, 0, 0, signTexOsaka('商店街', '#2f6fb0', '#eaf3ff'));
+
+  /* 自販機（並べると擬態しやすい） */
+  const vend = vendingTex();
+  function vending(x, z, ry) {
+    box(x, 0, z, 1.1, 1.9, 0.75, '#b02a26', ry);
+    const off = 0.39;
+    flat(x + (ry ? off : 0), 0.98, z + (ry ? 0 : off), 1.05, 1.8, ry, 0, vend);
+  }
+  for (let i = 0; i < 3; i++) vending(-13 + i * 1.2, -12.6, 0);
+  for (let i = 0; i < 3; i++) vending(13 - i * 1.2, 12.6, Math.PI);
+  vending(-23.2, 4, Math.PI / 2); vending(-23.2, 5.2, Math.PI / 2);
+
+  /* ゴミ袋の山 */
+  const bag = ['#2f3238', '#3a3f46', '#e9e6dc'];
+  for (let c = 0; c < 7; c++) {
+    const cx = (Math.random() - 0.5) * 44, cz = (Math.random() < 0.5 ? -1 : 1) * (9 + Math.random() * 3);
+    const col = bag[Math.floor(Math.random() * bag.length)];
+    for (let i = 0; i < 4 + Math.floor(Math.random() * 4); i++) {
+      const r = 0.42 + Math.random() * 0.26;
+      sph(cx + (Math.random() - 0.5) * 2.4, r * 0.9, cz + (Math.random() - 0.5) * 1.8, r, col, false, 9);
+    }
+  }
+  /* 三角コーンと看板 */
+  for (let i = 0; i < 8; i++) {
+    const x = (Math.random() - 0.5) * 42, z = (Math.random() - 0.5) * 14;
+    box(x, 0, z, 0.42, 0.06, 0.42, '#d9531e');
+    taper(x, 0.06, z, 0.04, 0.19, 0.55, '#e8622a');
+  }
+  /* 電柱と提灯 */
+  for (let i = 0; i < 6; i++) {
+    const x = -21 + i * 8.4, z = i % 2 ? -8.4 : 8.4;
+    cyl(x, 0, z, 0.19, 7.5, '#8d8f92', 10);
+    for (let k = 0; k < 3; k++) {
+      sph(x + 0.9, 3.4 - k * 0.0, z + (k - 1) * 0.9, 0.28, '#e8543a', true, 10);
+    }
+  }
+  /* ベンチと植木 */
+  bench(-6, 6.5, 0); bench(6, -6.5, Math.PI);
+  for (let i = 0; i < 5; i++) {
+    const x = -18 + i * 9;
+    cyl(x, 0, 0, 0.55, 0.7, '#7a6a58', 12);
+    sph(x, 1.3, 0, 0.85, '#4f8f4a', true, 10);
+  }
+
+  /* 外周（見えない壁＋ビルの背） */
+  const t = 1.2;
+  solids.push({ x0: -half - t, z0: -half - t, x1: half + t, z1: -half, top: 10 });
+  solids.push({ x0: -half - t, z0: half, x1: half + t, z1: half + t, top: 10 });
+  solids.push({ x0: -half - t, z0: -half - t, x1: -half, z1: half + t, top: 10 });
+  solids.push({ x0: half, z0: -half - t, x1: half + t, z1: half + t, top: 10 });
+  const sideTex = shutterTex('#6f7d88');
+  const sd = [[0, -half, 0], [0, half, Math.PI], [-half, 0, Math.PI / 2], [half, 0, -Math.PI / 2]];
+  for (let i = 0; i < 4; i++) flat(sd[i][0], 5, sd[i][1], W, 10, sd[i][2], 0, sideTex, [W / 3, 3]);
+
+  scene.background = new THREE.Color('#39456b');
+  scene.fog = new THREE.Fog('#39456b', 44, 120);
+  amb.intensity = 1.0; sun.intensity = 0.16;
+
+  const spawns = [];
+  for (let i = 0; i < 24; i++) {
+    spawns.push([(Math.random() - 0.5) * 46, (Math.random() - 0.5) * 20]);
+  }
+  return spawns;
+}
+
+/* =====================================================================
+   マップの登録と切りかえ
+===================================================================== */
+const MAPS = [
+  { name: '学校',        build: buildSchool },
+  { name: 'バックルーム', build: buildBackrooms },
+  { name: '大阪の路地',   build: buildOsaka }
+];
+
+let amb = null, sun = null;
+function initLights() {
+  amb = new THREE.AmbientLight(0xffffff, 0.86);
+  sun = new THREE.DirectionalLight(0xffffff, 0.24);
+  sun.position.set(30, 50, 20);
+  scene.add(amb); scene.add(sun);
+}
+
+function disposeGroup(g) {
+  g.traverse(function (o) {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if (m) {
+      const arr = Array.isArray(m) ? m : [m];
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].map && arr[i].map.dispose) arr[i].map.dispose();
+        arr[i].dispose();
+      }
+    }
+  });
+}
+
+function buildMap(idx) {
+  idx = Math.max(0, Math.min(MAPS.length - 1, idx | 0));
+  if (world && world.group) { scene.remove(world.group); disposeGroup(world.group); }
+  matCache.clear();
+  if (!amb) initLights();
+  if (!TEX) initTextures();
+  group = new THREE.Group(); solids = []; blockers = [];
+  scene.add(group);
+  const spawns = MAPS[idx].build();
+  buildWaitRoom();
+  world = { group: group, solids: solids, spawns: spawns, blockers: blockers };
+  G.map = idx;
+  return world;
 }
 
 /* =====================================================================
@@ -1663,7 +2038,7 @@ renderer.setSize(innerWidth, innerHeight);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, innerWidth / innerHeight, 0.05, 220);
 camera.rotation.order = 'YXZ';
-const world = buildWorld(scene);
+let world = null;
 scene.add(camera);
 const vmGun = makeGun();
 vmGun.scale.setScalar(0.92);
@@ -1688,10 +2063,13 @@ const G = {
   winner: null,
   settings: { seekers: 1, prep: 60, hunt: 180 },
   view: 0,            /* 0=一人称 1=三人称 */
+  map: 0,             /* いまのマップ */
   soloRole: 'hider'   /* 練習モードでの役 */
 };
 const me = { pos: new THREE.Vector3(0, 0, 18), vel: new THREE.Vector3(), yaw: Math.PI, pitch: 0,
   onGround: true, pose: 0, exposure: 1, stuck: false, embedT: 0, exposed: false, scale: HIDER_SCALE, whistleT: Math.random() * 10, inWait: false };
+
+buildMap(0);            /* G と me の宣言より後で呼ぶ必要がある */
 
 const net = new Net();
 const myAvatar = new Avatar(scene);
@@ -2384,10 +2762,14 @@ function aliveHiders() {
   return n;
 }
 function hostBroadcast() {
-  net.send('state', { phase: G.phase, remain: G.remain, roles: G.roles, dead: G.dead, winner: G.winner, settings: G.settings });
+  net.send('state', {
+    phase: G.phase, remain: G.remain, roles: G.roles, dead: G.dead,
+    winner: G.winner, settings: G.settings, map: G.map
+  });
 }
 function hostStart() {
   clearClones();
+  if ((G.settings.map || 0) !== G.map) buildMap(G.settings.map || 0);
   const ids = Array.from(net.players.keys());
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
   ids.sort(function () { return Math.random() - 0.5; });
@@ -2520,6 +2902,11 @@ net.on('state', function (s) {
   if (net.isHost) return;
   G.phase = s.phase; G.remain = s.remain; G.roles = s.roles || {};
   G.dead = s.dead || {}; G.winner = s.winner; G.settings = s.settings || G.settings;
+  if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
+    clearClones();
+    buildMap(s.map);
+    respawn();
+  }
   /* ロビー画面以外にいても、試合が始まったら必ずゲームに入る */
   if (G.mode === 'online' && G.phase !== 'lobby' && G.phase !== 'result' &&
     $('hud').classList.contains('hidden')) enterGame();
@@ -2649,6 +3036,8 @@ function refreshNetState() {
 
 $('btnSolo').onclick = function () {
   audio();
+  const mi = +$('soloMap').value || 0;
+  if (mi !== G.map) buildMap(mi);
   G.mode = 'solo'; G.phase = 'solo';
   net.players.set(net.id, { id: net.id, name: 'you', joinedAt: 0 });
   enterGame();
@@ -2681,7 +3070,7 @@ function startOnline(code) {
 }
 $('btnStart').onclick = function () {
   if (!net.isHost) return;
-  G.settings = { seekers: +$('setSeekers').value, prep: +$('setPrep').value, hunt: +$('setHunt').value };
+  G.settings = { seekers: +$('setSeekers').value, prep: +$('setPrep').value, hunt: +$('setHunt').value, map: +$('setMap').value || 0 };
   if (hostStart()) { enterGame(); applyState(); }
 };
 $('btnLobbyLeave').onclick = leaveToTitle;
@@ -2948,6 +3337,13 @@ function loop() {
 /* =====================================================================
    13. 起動
 ===================================================================== */
+(function () {
+  const a = $('setMap'), b = $('soloMap');
+  for (let i = 0; i < MAPS.length; i++) {
+    const o1 = document.createElement('option'); o1.value = i; o1.textContent = MAPS[i].name; a.appendChild(o1);
+    const o2 = document.createElement('option'); o2.value = i; o2.textContent = MAPS[i].name + 'で練習'; b.appendChild(o2);
+  }
+})();
 setPose(0);
 $('paintTip').textContent = isTouch
   ? 'ペイント中は自分は動きません。体をなぞる＝ぬる／背景タップ＝色をとる／背景をなぞる＝回りこむ／2本指＝ズーム／スティックと▲▼＝カメラ移動'
