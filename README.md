@@ -164,13 +164,36 @@ node server.mjs
    - **Project URL**（`https://xxxxxxxx.supabase.co`）
    - **Project API keys** の **`anon` `public`** のほう
      ※ `service_role` のキーは**絶対に使わないでください**（誰でも全データを触れてしまいます）
-4. ゲームのタイトル画面 →「⚙ オンライン設定」に貼りつけて、名前を入れて **保存**
+4. `index.html` を開いて、いちばん上のほうにある次の場所に貼りつける
+
+```js
+/* ★ ここに Supabase の情報を貼ってください ★ */
+const DEFAULT_CFG = {
+  url: '',      ← ここに Project URL
+  key: ''       ← ここに anon public キー
+};
+```
+
+`index.html` はテキストエディタ（メモ帳／VS Code／Xcode なんでも可）で開けます。
+`''` のあいだに貼るだけです。例:
+
+```js
+const DEFAULT_CFG = {
+  url: 'https://abcdefgh.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+};
+```
+
+これで **遊ぶ友だちは何も設定しなくてOK** になります（名前だけ入力）。
+貼らずに、各自がタイトル画面の「⚙ オンライン設定」に入力する方式でも動きます。
 
 これで「部屋をつくる」が使えます。表示された4文字のコードを友だちに伝えて、
 相手は「部屋コード」に入れて「入る」を押すだけ。
 
-> 遊ぶ人**全員**が同じ URL と anon key を設定する必要があります。
-> （URL とキーを friends に伝えるか、下の手順でホスティングしてしまうのが楽です）
+> ⚠️ **公開リポジトリに置く場合**、貼った anon key は誰でも見られます。
+> anon key はもともとブラウザに配る前提の鍵なので致命的ではありませんが、
+> 無関係な人に通信枠を使われる可能性はあります。気になったら Supabase 側で
+> キーを作り直せば、古いキーは無効になります。
 
 ### ゲームの流れ
 
@@ -181,17 +204,47 @@ node server.mjs
 
 ---
 
-## 6. スマホから遊べるようにする（ネットに置く）
+## 6. GitHub に置いて、スマホから遊べるようにする
 
-スマホのブラウザから開くには、どこかに置いて HTTPS の URL にする必要があります。
-いちばん手間がないのは **Netlify Drop**（無料・アカウントなしでも可）:
+スマホのブラウザから開くには、HTTPS の URL が必要です。
+**GitHub Pages** なら無料で、リポジトリを置くだけで公開できます。
+
+### 6-1. GitHub Desktop でアップロードする
+
+1. <https://desktop.github.com> から **GitHub Desktop** をダウンロードして入れる
+2. 起動して GitHub アカウントでログイン（アカウントが無ければその場で作れます）
+3. メニューの **File → Add Local Repository…**
+4. このフォルダ（`めっちゃカメレオン`）を選ぶ
+   - すでに Git の準備はできているので、そのまま追加できます
+5. 右上の **Publish repository** を押す
+6. ここで **Name を半角英数にする**（例: `chameleon-kakurenbo`）
+   - フォルダ名が日本語なので、そのままだと URL が読みにくくなります
+7. **Keep this code private のチェックを外す**（Pages を無料で使うため）
+8. **Publish repository** を押す
+
+以降、ファイルを直したら GitHub Desktop の左下で
+コメントを書いて **Commit** → 右上 **Push origin** で反映されます。
+
+### 6-2. GitHub Pages を有効にする
+
+1. ブラウザで自分のリポジトリを開く
+2. **Settings** タブ → 左メニューの **Pages**
+3. **Source** を `Deploy from a branch`、**Branch** を `main` / `/ (root)` にして **Save**
+4. 1〜2分待つと、ページ上部に URL が出ます
+
+```
+https://（あなたのユーザー名）.github.io/chameleon-kakurenbo/
+```
+
+この URL をスマホで開けば遊べます。友だちにもこの URL を渡すだけです。
+
+> Pages に反映されるまで少し時間がかかります。すぐ変わらなくても数分待ってください。
+
+### 6-3. Netlify Drop でもOK（GitHub を使いたくないとき）
 
 1. <https://app.netlify.com/drop> を開く
-2. この「めっちゃカメレオン」フォルダを**まるごとドラッグ&ドロップ**
+2. このフォルダを**まるごとドラッグ&ドロップ**
 3. 出てきた URL をスマホで開く
-
-GitHub Pages や Vercel、Cloudflare Pages でも同じように置けます
-（静的ファイルだけなので、ビルド設定は不要です）。
 
 ---
 
@@ -246,3 +299,13 @@ GitHub Pages や Vercel、Cloudflare Pages でも同じように置けます
 いすは**座面に乗れます**。いす → 机 → ロッカーの上、と段差をつたって高い所へも行けます
 （`Space` で浮けば、どこへでも）。
 
+
+---
+
+## クレジット
+
+- 3D 描画に [three.js](https://threejs.org/) r147（MIT License）を `vendor/three.min.js` として同梱しています。
+- モデル・テクスチャ・効果音・ゲームコードは、すべてこのプロジェクトで独自に作ったものです。
+  公式ゲームのデータは一切使っていません。
+- Steam『めっちゃカメレオン』(LEMORION) に着想を得た**非公式のファン作品**であり、
+  権利者とは一切関係がありません。

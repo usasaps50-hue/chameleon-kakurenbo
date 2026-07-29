@@ -262,7 +262,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
         <button class="big primary" id="cfgSave">保存</button>
         <button class="big" id="cfgBack">もどる</button>
       </div>
-      <p class="tiny dim">手順は README.md に書いてあります。設定しなくても「ひとりで練習」は遊べます。</p>
+      <p class="tiny dim" id="cfgNote">手順は README.md に書いてあります。設定しなくても「ひとりで練習」は遊べます。</p>
     </div>
   </section>
 
@@ -1528,7 +1528,29 @@ PaintUI.prototype.close = function () {
 const CFG_KEY = 'mc.cfg.v1';
 const SUPA_CDN = 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-function loadCfg() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { return {}; } }
+/* =====================================================================
+   ★ ここに Supabase の情報を貼ってください ★
+   ここを埋めておくと、遊ぶ友だちは何も設定せずに部屋に入れます。
+
+   Supabase の画面 → 左メニュー Settings → API
+     ・Project URL         → url に貼る（例: https://abcdefgh.supabase.co）
+     ・Project API keys の anon public → key に貼る
+   ※ service_role のキーは絶対に貼らないでください（全データを触れてしまいます）
+===================================================================== */
+const DEFAULT_CFG = {
+  url: '',
+  key: ''
+};
+
+function loadCfg() {
+  let c = {};
+  try { c = JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { }
+  return {
+    url: c.url || DEFAULT_CFG.url,
+    key: c.key || DEFAULT_CFG.key,
+    name: c.name || ''
+  };
+}
 function saveCfg(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
 function isConfigured() {
   const c = loadCfg();
@@ -2536,7 +2558,7 @@ $('btnJoin').onclick = function () {
 function startOnline(code) {
   if (!isConfigured()) { openCfg(); alert('先にオンライン設定（Supabase の URL とキー）をしてください'); return; }
   const cfg = loadCfg();
-  if (!cfg.name) { openCfg(); return; }
+  if (!cfg.name) { openCfg(); toast('なまえを入れて保存してください'); return; }
   $('loading').textContent = '接続中…';
   $('loading').style.display = 'grid';
   net.join(code, cfg.name).then(function () {
@@ -2571,6 +2593,9 @@ $('btnAgain').onclick = function () {
 };
 function openCfg() {
   const c = loadCfg();
+  if (DEFAULT_CFG.url && DEFAULT_CFG.key) {
+    $('cfgNote').textContent = 'URL とキーは設定ずみです。なまえだけ入れて保存してください。';
+  }
   $('cfgUrl').value = c.url || '';
   $('cfgKey').value = c.key || '';
   $('cfgName').value = c.name || '';
