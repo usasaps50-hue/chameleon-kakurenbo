@@ -66,6 +66,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #phaseBox{display:flex;align-items:baseline;gap:8px;background:#0d1017cc;border:1px solid #2a3244;
   border-radius:12px;padding:6px 12px}
 #phaseName{font-size:11px;color:#9aa4bb}
+#phaseBox.reveal{background:#3a2a12ee;border-color:#c8922e}
+#phaseBox.reveal #phaseName{color:#ffd48a}
 #timer{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
 #roleBadge{font-size:12px;font-weight:700;padding:6px 12px;border-radius:12px}
 .role-hider{background:#1d3b26;color:#8ee5a0;border:1px solid #2f6a41}
@@ -2128,8 +2130,8 @@ function buildDotonbori() {
    マップの登録と切りかえ
 ===================================================================== */
 const MAPS = [
-  { name: '学校',     build: buildSchool },
-  { name: '道頓堀',   build: buildDotonbori }
+  { name: '学校',     build: buildSchool,     ceil: 6 },
+  { name: '道頓堀',   build: buildDotonbori,  ceil: 9 }   /* 川ぞいなので高く飛べる */
 ];
 
 let amb = null, sun = null;
@@ -2165,6 +2167,7 @@ function buildMap(idx) {
   const spawns = MAPS[idx].build();
   buildWaitRoom();
   world = { group: group, solids: solids, spawns: spawns, blockers: blockers, animators: animators };
+  G.ceilY = MAPS[idx].ceil || 6;
   G.map = idx;
   return world;
 }
@@ -2475,6 +2478,18 @@ Avatar.prototype.showEmote = function () {
   this.emoteUntil = performance.now() + 1600;
 };
 Avatar.prototype.setVisible = function (v) { this.root.visible = v; };
+/** 答え合わせ用：壁ごしに、点滅して見えるようにする */
+Avatar.prototype.setXray = function (on, alpha) {
+  if (this._xray !== on) {
+    this._xray = on;
+    this.material.depthTest = !on;
+    this.material.transparent = on;
+    this.material.needsUpdate = true;
+    for (let i = 0; i < this.meshes.length; i++) this.meshes[i].renderOrder = on ? 9 : 0;
+    if (this.gun) this.gun.visible = this.gun.visible && !on;
+  }
+  if (on) this.material.opacity = alpha;
+};
 Avatar.prototype.dispose = function (scene) {
   scene.remove(this.root);
   this.material.dispose();
@@ -2792,6 +2807,8 @@ const G = {
   settings: { seekers: 1, prep: 60, hunt: 180 },
   view: 0,            /* 0=一人称 1=三人称 */
   map: 0,             /* いまのマップ */
+  ceilY: 6,           /* 浮ける高さ */
+  caughtAt: {},       /* つかまった場所 */
   free: false,        /* フリーカメラ（自分は動かない） */
   soloRole: 'hider'   /* 練習モードでの役 */
 };
@@ -3503,6 +3520,10 @@ function putClone() {
    8. 進行（ホストが正）
 ===================================================================== */
 let hostTimer = null;
+function ensureHostTimer() {          /* 二重に走らせない */
+  if (hostTimer) clearInterval(hostTimer);
+  hostTimer = setInterval(hostTick, 1000);
+}
 function aliveHiders() {
   let n = 0;
   for (const id in G.roles) if (G.roles[id] === 'hider') n++;
@@ -3510,7 +3531,7 @@ function aliveHiders() {
 }
 function hostBroadcast() {
   net.send('state', {
-    phase: G.phase, remain: G.remain, roles: G.roles, caught: G.caught,
+    phase: G.phase, remain: G.remain, roles: G.roles, caught: G.caught, caughtAt: G.caughtAt,
     winner: G.winner, settings: G.settings, map: G.map
   });
 }
@@ -3522,29 +3543,32 @@ function hostStart() {
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
   ids.sort(function () { return Math.random() - 0.5; });
   const nSeek = Math.min(G.settings.seekers, ids.length - 1);
-  G.roles = {}; G.caught = {}; G.winner = null;
+  G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
   for (let i = 0; i < ids.length; i++) G.roles[ids[i]] = i < nSeek ? 'seeker' : 'hider';
   G.phase = 'prep'; G.remain = G.settings.prep;
   hostBroadcast();
-  if (hostTimer) clearInterval(hostTimer);
-  hostTimer = setInterval(hostTick, 1000);
+  ensureHostTimer();
   return true;
 }
 function hostTick() {
   if (!net.isHost) { clearInterval(hostTimer); hostTimer = null; return; }
-  if (G.phase === 'prep' || G.phase === 'hunt') {
+  if (G.phase === 'prep' || G.phase === 'hunt' || G.phase === 'reveal') {
     G.remain -= 1;
     if (G.remain <= 0) {
       if (G.phase === 'prep') { G.phase = 'hunt'; G.remain = G.settings.hunt; }
-      else { hostFinish('hider'); return; }
+      else if (G.phase === 'hunt') { hostFinish('hider'); return; }
+      else {                                   /* 答え合わせ終わり */
+        G.phase = 'result'; G.remain = 0;
+        clearInterval(hostTimer); hostTimer = null;
+      }
     }
   }
   hostBroadcast();
   applyState();
 }
+const REVEAL_SEC2 = 20;
 function hostFinish(w) {
-  G.phase = 'result'; G.winner = w; G.remain = 0;
-  clearInterval(hostTimer); hostTimer = null;
+  G.phase = 'reveal'; G.winner = w; G.remain = REVEAL_SEC2;
   hostBroadcast();
   applyState();
 }
@@ -3553,9 +3577,53 @@ function applyTag(by, target) {
   if (G.roles[by] !== 'seeker' || G.roles[target] !== 'hider') return;
   G.roles[target] = 'seeker';        /* つかまった人は鬼になって、いっしょに探す */
   G.caught[target] = 1;
+  /* 答え合わせ用に「つかまった場所」を覚えておく */
+  const av = target === net.id ? myAvatar : remotes.get(target);
+  if (av) {
+    const p = target === net.id ? me.pos : av.root.position;
+    G.caughtAt[target] = [+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2),
+      +(target === net.id ? me.yaw : av.targetRot).toFixed(2), av.pose | 0];
+  }
   hostBroadcast();
   applyState();
   if (aliveHiders() === 0) hostFinish('seeker');
+}
+
+/* =====================================================================
+   8.5 答え合わせ（20秒）
+   全員が壁ごしに点滅して見える。つかまった人は「つかまった場所」に立つ。
+===================================================================== */
+const revealGhosts = new Map();
+
+function buildRevealGhosts() {
+  clearRevealGhosts();
+  for (const id in G.caughtAt) {
+    const d = G.caughtAt[id];
+    const av = new Avatar(scene);
+    av.setScale(HIDER_SCALE);
+    av.setPose(d[0], d[1], d[2], d[3], false, d[4] | 0);
+    av.update(0.016, true);
+    const src = id === net.id ? myAvatar.canvas : (remotes.get(id) ? remotes.get(id).canvas : null);
+    if (src) { av.ctx.clearRect(0, 0, SKIN_W, SKIN_H); av.ctx.drawImage(src, 0, 0); av.texture.needsUpdate = true; }
+    av.marker.visible = false;
+    revealGhosts.set(id, av);
+  }
+}
+function clearRevealGhosts() {
+  revealGhosts.forEach(function (av) { av.dispose(scene); });
+  revealGhosts.clear();
+}
+
+function updateReveal(on) {
+  const a = on ? 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(performance.now() * 0.009)) : 1;
+  myAvatar.setXray(on, a);
+  remotes.forEach(function (av) { av.setXray(on, a); });
+  revealGhosts.forEach(function (av) {
+    av.setXray(on, a);
+    av.setVisible(on);
+    av.update(0.016, true);
+  });
+  clones.forEach(function (c) { c.av.setVisible(!on); });
 }
 
 /* =====================================================================
@@ -3575,10 +3643,24 @@ function announceRole() {
   _lastRole = role; _lastCaught = n;
 }
 
+let _lastPhase = null;
 function applyState() {
   announceRole();
+  if (G.phase !== _lastPhase) {
+    _lastPhase = G.phase;
+    if (G.phase === 'reveal') {
+      buildRevealGhosts();
+      if (paint.open) togglePaint();
+      G.free = false; $('btnFree').classList.remove('on');
+      toast('答え合わせ！ みんなの隠れ場所が見えます', 4000);
+    } else {
+      clearRevealGhosts();
+      updateReveal(false);
+    }
+  }
   const role = myRole(), dead = amDead(), solo = G.mode === 'solo';
-  $('phaseName').textContent = G.phase === 'prep' ? 'じゅんび' : G.phase === 'hunt' ? 'さがす' : '';
+  $('phaseName').textContent = G.phase === 'prep' ? 'じゅんび'
+    : G.phase === 'hunt' ? 'さがす' : G.phase === 'reveal' ? '答え合わせ' : '';
   $('timer').textContent = fmt(G.remain);
   const b = $('roleBadge');
   b.className = dead ? 'role-dead' : role === 'seeker' ? 'role-seeker' : 'role-hider';
@@ -3593,6 +3675,7 @@ function applyState() {
   $('btnPick').classList.toggle('hidden', !canPaint());
   $('btnTag').classList.toggle('hidden',
     !(isTouch && role === 'seeker' && !dead && (solo || G.phase === 'hunt')));
+  $('phaseBox').classList.toggle('reveal', G.phase === 'reveal');
   $('btnClone').classList.toggle('hidden', !canClone());
   $('btnRole').classList.toggle('hidden', !solo);
   $('btnRole').firstChild.nodeValue = role === 'seeker' ? '🎨' : '👹';
@@ -3657,7 +3740,8 @@ net.on('players', function () {
   remotes.forEach(function (av, id) {
     if (!net.players.has(id)) { av.dispose(scene); remotes.delete(id); }
   });
-  if (net.isHost && !hostTimer && (G.phase === 'prep' || G.phase === 'hunt')) hostTimer = setInterval(hostTick, 1000);
+  if (net.isHost && !hostTimer &&
+    (G.phase === 'prep' || G.phase === 'hunt' || G.phase === 'reveal')) ensureHostTimer();
 });
 net.on('hello', function () {
   clearTimeout(net._h);
@@ -3666,7 +3750,8 @@ net.on('hello', function () {
 net.on('state', function (s) {
   if (net.isHost) return;
   G.phase = s.phase; G.remain = s.remain; G.roles = s.roles || {};
-  G.caught = s.caught || {}; G.winner = s.winner; G.settings = s.settings || G.settings;
+  G.caught = s.caught || {}; G.caughtAt = s.caughtAt || {};
+  G.winner = s.winner; G.settings = s.settings || G.settings;
   if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
     clearClones();
     buildMap(s.map);
@@ -3788,8 +3873,10 @@ function leaveToTitle() {
   remotes.forEach(function (av) { av.dispose(scene); });
   remotes.clear();
   clearClones();
+  clearRevealGhosts();
+  _lastPhase = null;
   net.leave();
-  G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.caught = {}; G.winner = null;
+  G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
   _lastRole = null; _lastCaught = 0;
   show('scTitle');
   refreshNetState();
@@ -3846,7 +3933,7 @@ $('btnLeave').onclick = function () {
 };
 $('btnAgain').onclick = function () {
   if (G.mode !== 'online') { leaveToTitle(); return; }
-  G.phase = 'lobby'; G.winner = null; G.roles = {}; G.caught = {};
+  G.phase = 'lobby'; G.winner = null; G.roles = {}; G.caught = {}; G.caughtAt = {};
   if (net.isHost) hostBroadcast();
   $('hud').classList.add('hidden');
   paint.close();
@@ -3877,7 +3964,7 @@ $('cfgSave').onclick = function () {
 /* =====================================================================
    12. メインループ
 ===================================================================== */
-const GRAVITY = 17, CEIL_Y = 6.0;
+const GRAVITY = 17, CEIL_Y = 6.0;   /* 既定。マップごとに G.ceilY で上書き */
 const EMBED_MIN = 0.10, REVEAL_SEC = 10;
 const camDir = new THREE.Vector3(), lookAt = new THREE.Vector3();
 const tpRay = new THREE.Raycaster();
@@ -3913,7 +4000,7 @@ function step(dt) {
   const frozen = false;
   const ghost = false;
   const pose = POSES[me.pose];
-  const active = !paint.open && !G.free && !frozen && G.phase !== 'result';
+  const active = !paint.open && !G.free && !frozen && G.phase !== 'result';   /* 答え合わせ中も動ける */
 
   /* Shift = 走る／張り付き解除、Space = 上がる、Ctrl = 下がる */
   const dashing = active && (keys.has('ShiftLeft') || keys.has('ShiftRight') || input.dash);
@@ -3956,7 +4043,7 @@ function step(dt) {
     const b = curBounds;
     me.fcam.x = Math.max(b.x0, Math.min(b.x1, me.fcam.x));
     me.fcam.z = Math.max(b.z0, Math.min(b.z1, me.fcam.z));
-    me.fcam.y = Math.max(0.4, Math.min(30, me.fcam.y));
+    me.fcam.y = Math.max(0.4, Math.min((G.ceilY || CEIL_Y) + 22, me.fcam.y));
   }
 
   /* --- ペイント中：自分は動かさず、カメラだけ自由に飛ばす --- */
@@ -3986,7 +4073,8 @@ function step(dt) {
     else me.vel.y -= GRAVITY * dt;
 
     me.pos.y += me.vel.y * dt;
-    if (me.pos.y > CEIL_Y) { me.pos.y = CEIL_Y; me.vel.y = Math.min(0, me.vel.y); }
+    const ceil = G.ceilY || CEIL_Y;
+    if (me.pos.y > ceil) { me.pos.y = ceil; me.vel.y = Math.min(0, me.vel.y); }
 
     /* 水平移動は細かく刻んで、その都度めり込みを判定する（すり抜け防止） */
     const n = Math.max(1, Math.ceil(Math.hypot(mvx, mvz) / SUBSTEP));
@@ -4032,7 +4120,8 @@ function step(dt) {
   myAvatar.update(dt, true);
   myAvatar.setVisible(G.view === 1 || G.free);
   vmGun.visible = seeker && G.view === 0 && !paint.open && !G.free;
-  const iAmSeeker = myRole() === 'seeker' && !amDead();
+  updateReveal(G.phase === 'reveal');
+  const iAmSeeker = myRole() === 'seeker' && !amDead() && G.phase !== 'reveal';
   remotes.forEach(function (av, id) {
     const isSeek = G.roles[id] === 'seeker';
     av.setScale(isSeek ? SEEKER_SCALE : HIDER_SCALE);
