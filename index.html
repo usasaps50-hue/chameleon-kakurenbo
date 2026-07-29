@@ -256,7 +256,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <h2>オンライン設定</h2>
       <p class="sub">Supabase の無料プロジェクトを1つ作って、下の2つを貼り付けてください。（この端末に保存されます）</p>
       <label>Project URL</label><input id="cfgUrl" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off">
-      <label>anon public key</label><input id="cfgKey" placeholder="eyJhbGciOi..." autocomplete="off">
+      <label>キー（Publishable / anon public）</label><input id="cfgKey" placeholder="sb_publishable_... または eyJhbGci..." autocomplete="off">
       <label>あなたの名前</label><input id="cfgName" placeholder="なまえ" maxlength="10">
       <div class="row">
         <button class="big primary" id="cfgSave">保存</button>
@@ -1526,16 +1526,19 @@ PaintUI.prototype.close = function () {
    4. オンライン（Supabase Realtime の broadcast + presence だけ使用）
 ===================================================================== */
 const CFG_KEY = 'mc.cfg.v1';
-const SUPA_CDN = 'https://esm.sh/@supabase/supabase-js@2.45.4';
+const SUPA_CDN = 'https://esm.sh/@supabase/supabase-js@2';   /* 新形式(sb_publishable_...)のキーにも対応 */
 
 /* =====================================================================
    ★ ここに Supabase の情報を貼ってください ★
    ここを埋めておくと、遊ぶ友だちは何も設定せずに部屋に入れます。
 
    Supabase の画面 → 左メニュー Settings → API
-     ・Project URL         → url に貼る（例: https://abcdefgh.supabase.co）
-     ・Project API keys の anon public → key に貼る
-   ※ service_role のキーは絶対に貼らないでください（全データを触れてしまいます）
+   ・Project URL … https://〇〇〇〇.supabase.co
+   ・キー … 次のどちらでもOK
+       「Publishable and secret API keys」タブの Publishable key（sb_publishable_... ）
+       「Legacy API keys」タブの anon public（eyJhbGci... ）
+   ※ secret / service_role のキーは絶対に貼らないでください（全データを触れてしまいます）
+   （上部の Connect ボタンからまとめてコピーするのが早いです）
 ===================================================================== */
 const DEFAULT_CFG = {
   url: '',

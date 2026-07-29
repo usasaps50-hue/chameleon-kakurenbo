@@ -159,18 +159,22 @@ node server.mjs
 
 1. <https://supabase.com> でアカウントを作り、**New project** で新しいプロジェクトを1つ作る
    （リージョンは `Northeast Asia (Tokyo)` が速いです。パスワードは使わないので何でも可）
-2. プロジェクトができたら左メニューの **Settings → API** を開く
+2. 上部の **Connect** ボタンを押す（URL とキーがまとめて出ます）
+   - メニューからたどる場合は **Settings（歯車）→ API Keys**
 3. 次の2つをコピーする
    - **Project URL**（`https://xxxxxxxx.supabase.co`）
-   - **Project API keys** の **`anon` `public`** のほう
-     ※ `service_role` のキーは**絶対に使わないでください**（誰でも全データを触れてしまいます）
+   - **キー**。API Keys にはタブが2つあり、**どちらでも動きます**
+     - `Publishable and secret API keys` タブ → **Publishable key**（`sb_publishable_...`）
+       ※無ければ `Create new API Keys` で作れます
+     - `Legacy API keys` タブ → **anon public**（`eyJhbGci...`）
+     - ⚠️ `secret` / `service_role` のキーは**絶対に使わないでください**（全データを触れてしまいます）
 4. `index.html` を開いて、いちばん上のほうにある次の場所に貼りつける
 
 ```js
 /* ★ ここに Supabase の情報を貼ってください ★ */
 const DEFAULT_CFG = {
   url: '',      ← ここに Project URL
-  key: ''       ← ここに anon public キー
+  key: ''       ← ここに Publishable / anon public キー
 };
 ```
 
@@ -180,7 +184,7 @@ const DEFAULT_CFG = {
 ```js
 const DEFAULT_CFG = {
   url: 'https://abcdefgh.supabase.co',
-  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  key: 'sb_publishable_xxxxxxxxxxxxxxxx'
 };
 ```
 
