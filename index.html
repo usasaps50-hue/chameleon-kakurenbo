@@ -183,6 +183,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnPaint" class="rb">🎨<i>ぬる</i></button>
     <button id="btnPick"  class="rb">💧<i>スポイト</i></button>
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
+    <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
     <button id="btnEmote" class="rb">👋<i>エモート</i></button>
@@ -971,6 +972,89 @@ function aSign(x, z, ry, text, bg, fg) {         /* 立て看板 */
 }
 
 
+/* ---------- さらに隠れ場所を増やすための大物 ---------- */
+function jungleGym(x, z, n) {                    /* ジャングルジム。中に入れる・上に乗れる */
+  const c = '#5aa0c8', st = 1.4;
+  for (let ix = 0; ix <= n; ix++) for (let iz = 0; iz <= n; iz++) {
+    cyl(x + (ix - n / 2) * st, 0, z + (iz - n / 2) * st, 0.06, st * 2, c, 6, true);
+  }
+  for (let lv = 1; lv <= 2; lv++) {
+    for (let ix = 0; ix <= n; ix++) {
+      box(x, lv * st - 0.03, z + (ix - n / 2) * st, n * st, 0.06, 0.06, c, 0, true);
+      box(x + (ix - n / 2) * st, lv * st - 0.03, z, 0.06, 0.06, n * st, c, 0, true);
+    }
+  }
+  addSolid(x, z, n * st + 0.2, n * st + 0.2, st * 2);
+}
+function sandbox(x, z, w) {                      /* 砂場（ふちに乗れる） */
+  box(x, 0, z - w / 2, w, 0.32, 0.32, '#a9836a');
+  box(x, 0, z + w / 2, w, 0.32, 0.32, '#a9836a');
+  box(x - w / 2, 0, z, 0.32, 0.32, w, '#a9836a');
+  box(x + w / 2, 0, z, 0.32, 0.32, w, '#a9836a');
+  flat(x, 0.06, z, w, w, 0, -Math.PI / 2, TEX.sand, [w / 3, w / 3]);
+}
+function bikeRack(x, z, ry, n) {                 /* 自転車おきば。シルエットを崩せる */
+  const g = furn(x, z, ry);
+  const cols = ['#2f3a48', '#8a3a35', '#2f6a48', '#3a3f5a', '#7a6a3a'];
+  for (let i = 0; i < n; i++) {
+    const px = -n * 0.45 + i * 0.9;
+    part(g, px, 0, -0.5, 0.06, 0.22, 0.5, '#9aa2ad');            /* 車輪どめ */
+    const w1 = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.045, 6, 14), mat('#22262c'));
+    w1.position.set(px, 0.34, -0.42); g.add(w1);
+    const w2 = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.045, 6, 14), mat('#22262c'));
+    w2.position.set(px, 0.34, 0.5); g.add(w2);
+    part(g, px, 0.5, 0.05, 0.06, 0.06, 0.9, cols[i % 5]);        /* フレーム */
+    part(g, px, 0.34, -0.2, 0.05, 0.42, 0.05, cols[i % 5]);
+    part(g, px, 0.72, 0.4, 0.1, 0.08, 0.28, '#2a2e34');          /* サドル */
+    part(g, px, 0.86, -0.42, 0.44, 0.05, 0.05, '#4a5058');       /* ハンドル */
+  }
+  addSolid(x, z, n * 0.9 + 0.4, 1.3, 0.95, ry);
+}
+function scoreboard(x, y, z, ry) {               /* 体育館の得点板 */
+  box(x, y, z, 3.2, 1.8, 0.25, '#2a3038', ry, true);
+  flat(x + (ry ? 0.15 : 0), y + 0.9, z + (ry ? 0 : 0.15), 3.0, 1.6, ry, 0,
+    canvasTex(384, 208, function (g, w, h) {
+      g.fillStyle = '#181c22'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#e8d24a'; g.font = 'bold 30px ' + JPFONT;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('赤', w * 0.25, 34); g.fillText('白', w * 0.75, 34);
+      g.fillStyle = '#ff5a4a'; g.font = 'bold 84px monospace';
+      g.fillText('12', w * 0.25, 118);
+      g.fillStyle = '#eaeef5'; g.fillText('08', w * 0.75, 118);
+      g.fillStyle = '#8a94a4'; g.font = 'bold 24px monospace';
+      g.fillText('3 : 45', w / 2, 182);
+    }));
+}
+function balanceBeam(x, z, ry) {                 /* 平均台。乗れる */
+  const g = furn(x, z, ry);
+  part(g, 0, 0.5, 0, 3.6, 0.16, 0.24, '#c8a473');
+  part(g, -1.5, 0, 0, 0.14, 0.5, 0.5, '#8e959e');
+  part(g, 1.5, 0, 0, 0.14, 0.5, 0.5, '#8e959e');
+  addSolid(x, z, 3.7, 0.5, 0.66, ry);
+}
+function sinkRow(x, z, ry, n) {                  /* 廊下の手洗い場 */
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, n * 0.7, 0.8, 0.55, '#c8ccd2');
+  part(g, 0, 0.8, 0, n * 0.7, 0.08, 0.55, '#e2e6ea');
+  for (let i = 0; i < n; i++) {
+    part(g, -n * 0.35 + 0.35 + i * 0.7, 0.88, -0.16, 0.06, 0.24, 0.06, '#9aa2ad');
+  }
+  flat(x + (ry ? 0.3 : 0), 1.6, z + (ry ? 0 : 0.3), n * 0.65, 0.9, ry, 0, '#dfe6ea');  /* 鏡 */
+  addSolid(x, z, n * 0.75, 0.6, 0.9, ry);
+}
+function phoneBooth(x, z, ry) {                  /* 電話ボックス */
+  box(x, 0, z, 1.1, 2.3, 1.1, '#2f7a4a', ry);
+  const off = 0.56;
+  flat(x + (ry ? off : 0), 1.3, z + (ry ? 0 : off), 0.85, 1.5, ry, 0, '#cfe4f2');
+  flat(x - (ry ? off : 0), 1.3, z - (ry ? 0 : off), 0.85, 1.5, ry, 0, '#cfe4f2');
+  box(x, 2.3, z, 1.3, 0.16, 1.3, '#256a3e', ry, true);
+}
+function standTable(x, z) {                      /* 立ち飲みの丸テーブル */
+  cyl(x, 0, z, 0.12, 1.05, '#3a3f46', 10);
+  cyl(x, 1.05, z, 0.55, 0.08, '#8a5a34', 14);
+  cyl(x, 0, z, 0.4, 0.05, '#3a3f46', 12, true);
+}
+
 function initTextures() {
   rng = makeRng(20260610);
   TEX = {
@@ -1150,6 +1234,8 @@ function buildSchool() {
   lockerBank(-33, -13.4, 0, 4, 'lockerB');
   lockerBank(33, -13.4, 0, 4, 'lockerA');
   fireBox(-16, -13.3, 0); fireBox(18, -8.6, 0);
+  sinkRow(-9, -8.6, Math.PI, 5);                        /* 手洗い場 */
+  sinkRow(25, -13.3, 0, 4);
   cardboard(-27, -9.2, 0.2); cardboard(14, -13, -0.3);
   servingCart(4, -9, Math.PI / 2);
   umbrellaStand(29.5, -13.2);
@@ -1175,6 +1261,12 @@ function buildSchool() {
   shed(-31.5, 1.5, Math.PI / 2);                       /* 物置 */
   tires(-6, 5.5, 4);                                    /* タイヤとび */
   cardboard(28, 10.5, 0.9);
+  jungleGym(-24, -4, 3);                                /* ジャングルジム */
+  sandbox(22, 6, 7);                                    /* 砂場 */
+  bikeRack(-2, 11.4, 0, 7);                             /* 自転車おきば */
+  bikeRack(8, 11.4, 0, 7);
+  flat(12, 2.4, -7.4, 4.2, 2.4, 0, 0, TEX.board);       /* 外の掲示板 */
+  box(12, 0, -7.2, 4.6, 2.0, 0.35, '#8a7a63');
   /* 中庭を囲む低いフェンス */
   for (let i = 0; i < 14; i++) {
     cyl(-33 + i * 5, 0, -7.2, 0.06, 1.0, '#b6bcc4', 8, true);
@@ -1213,6 +1305,10 @@ function buildSchool() {
   chairStack(-6.2, 30.5, 0); chairStack(-7.3, 30.5, 0);
   box(-13, 0, 21.2, 2.4, 0.9, 1.2, '#3f6fb8');          /* たたんだマット */
   box(-13, 0.9, 21.2, 2.2, 0.8, 1.1, '#5a8ad0', 0, true);
+  balanceBeam(-24, 24.5, 0);                            /* 平均台 */
+  balanceBeam(-24, 29.5, Math.PI / 2);
+  scoreboard(-2.6, 3.2, 27, Math.PI / 2);               /* 得点板 */
+  vaultBox(-11, 25.5, Math.PI / 2);
 
   /* 図書室（本棚が遮蔽物） */
   for (let r = 0; r < 4; r++) {
@@ -1400,6 +1496,11 @@ function buildOsaka() {
   aSign(24.5, -10.5, 0.2, '本日開店', '#f0b62a', '#3a2410');
   cardboard(-24.5, -11.8, 0.2); cardboard(23.5, 11.8, -0.5);
   chairStack(12.5, 12.6, 0);
+  bikeRack(-27, -11.6, 0, 6);                           /* 自転車の列 */
+  bikeRack(27, 11.6, Math.PI, 6);
+  phoneBooth(-24.5, 9.5, 0.3);                          /* 電話ボックス */
+  standTable(-13.5, 4.5); standTable(-12, 5.5);         /* 立ち飲みテーブル */
+  standTable(16.5, -4.5); standTable(18, -5.5);
 
   /* ベンチと植木 */
   bench(-6, 6.5, 0); bench(6, -6.5, Math.PI);
@@ -1926,6 +2027,7 @@ PaintUI.prototype.dirty = function (commit) {
 
 PaintUI.prototype.show = function () {
   this.open = true;
+  if (G.free) { G.free = false; $('btnFree').classList.remove('on'); }
   this.az = me.yaw + Math.PI;      /* いま見ている向きのまま開く */
   this.elev = Math.max(0, me.pitch);
   this.dist = 2.2 * me.scale + 0.6;
@@ -2102,16 +2204,18 @@ const G = {
   phase: 'lobby',     /* lobby | prep | hunt | result */
   remain: 0,
   roles: {},
-  dead: {},
+  caught: {},         /* つかまって鬼になった人 */
   winner: null,
   settings: { seekers: 1, prep: 60, hunt: 180 },
   view: 0,            /* 0=一人称 1=三人称 */
   map: 0,             /* いまのマップ */
+  free: false,        /* フリーカメラ（自分は動かない） */
   soloRole: 'hider'   /* 練習モードでの役 */
 };
 const me = { pos: new THREE.Vector3(0, 0, 18), vel: new THREE.Vector3(), yaw: Math.PI, pitch: 0,
   onGround: true, pose: 0, exposure: 1, stuck: false, embedT: 0, exposed: false, scale: HIDER_SCALE, whistleT: Math.random() * 10, inWait: false,
-  svx: 0, svz: 0, camD: 3 };
+  svx: 0, svz: 0, camD: 3,
+  fcam: new THREE.Vector3(), fyaw: 0, fpitch: 0.2 };
 
 buildMap(0);            /* G と me の宣言より後で呼ぶ必要がある */
 
@@ -2124,7 +2228,8 @@ const myRole = function () {
   if (G.mode === 'solo') return G.soloRole || 'hider';
   return G.roles[net.id] || 'hider';
 };
-const amDead = function () { return !!G.dead[net.id]; };
+const wasCaught = function (id) { return !!G.caught[id || net.id]; };
+const amDead = function () { return false; };   /* つかまっても脱落しない（鬼になる） */
 const fmt = function (s) {
   s = Math.max(0, Math.ceil(s));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -2240,6 +2345,7 @@ addEventListener('keydown', function (e) {
   else if (e.code === 'Space') { if (paint.open) doPick(); }   /* ペイント中の Space は 3D スポイト */
   else if (e.code === 'KeyR') setPose(me.pose + 1);
   else if (e.code === 'KeyC') putClone();
+  else if (e.code === 'Digit5') toggleFree();
   else if (e.code === 'KeyE' || e.code === 'Digit1') { myAvatar.showEmote(); net.send('emote', { id: net.id }); }
   else if (e.code === 'Escape' && paint.open) togglePaint();
 });
@@ -2381,6 +2487,21 @@ canvasEl.addEventListener('wheel', function (e) {
 $('btnPaint').onclick = togglePaint;
 $('btnPick').onclick = function () { if (canPaint()) doPick(); else toast('いまはスポイトできません'); };
 $('btnPose').onclick = function () { setPose(me.pose + 1); };
+const FREE_RANGE = 14;                 /* 自分からこの距離までしか飛べない */
+function toggleFree() {
+  if (paint.open) { toast('ペイント中は使えません'); return; }
+  G.free = !G.free;
+  $('btnFree').classList.toggle('on', G.free);
+  if (G.free) {
+    /* いまのカメラ位置から引きつぐ */
+    me.fcam.copy(camera.position);
+    me.fyaw = me.yaw; me.fpitch = me.pitch;
+    toast('フリーカメラ：自分はその場に残ります（WASDで移動、Space/Ctrlで上下）', 4000);
+  } else {
+    toast('もどりました');
+  }
+}
+$('btnFree').onclick = toggleFree;
 $('btnClone').onclick = putClone;
 $('btnRole').onclick = function () {
   G.soloRole = G.soloRole === 'seeker' ? 'hider' : 'seeker';
@@ -2649,7 +2770,7 @@ function aimResult() {
   const objs = [world.group];
   const byMesh = new Map(), cloneOf = new Map();
   remotes.forEach(function (av, id) {
-    if (G.dead[id] || G.roles[id] === 'seeker') return;
+    if (G.roles[id] === 'seeker') return;
     av.root.updateWorldMatrix(false, true);      /* 位置を確定させてから当てる */
     for (let i = 0; i < av.meshes.length; i++) { objs.push(av.meshes[i]); byMesh.set(av.meshes[i], id); }
   });
@@ -2802,23 +2923,24 @@ function putClone() {
 let hostTimer = null;
 function aliveHiders() {
   let n = 0;
-  for (const id in G.roles) if (G.roles[id] === 'hider' && !G.dead[id]) n++;
+  for (const id in G.roles) if (G.roles[id] === 'hider') n++;
   return n;
 }
 function hostBroadcast() {
   net.send('state', {
-    phase: G.phase, remain: G.remain, roles: G.roles, dead: G.dead,
+    phase: G.phase, remain: G.remain, roles: G.roles, caught: G.caught,
     winner: G.winner, settings: G.settings, map: G.map
   });
 }
 function hostStart() {
   clearClones();
+  _lastRole = null; _lastCaught = 0;
   if ((G.settings.map || 0) !== G.map) buildMap(G.settings.map || 0);
   const ids = Array.from(net.players.keys());
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
   ids.sort(function () { return Math.random() - 0.5; });
   const nSeek = Math.min(G.settings.seekers, ids.length - 1);
-  G.roles = {}; G.dead = {}; G.winner = null;
+  G.roles = {}; G.caught = {}; G.winner = null;
   for (let i = 0; i < ids.length; i++) G.roles[ids[i]] = i < nSeek ? 'seeker' : 'hider';
   G.phase = 'prep'; G.remain = G.settings.prep;
   hostBroadcast();
@@ -2846,8 +2968,9 @@ function hostFinish(w) {
 }
 function applyTag(by, target) {
   if (G.phase !== 'hunt') return;
-  if (G.roles[by] !== 'seeker' || G.roles[target] !== 'hider' || G.dead[target]) return;
-  G.dead[target] = 1;
+  if (G.roles[by] !== 'seeker' || G.roles[target] !== 'hider') return;
+  G.roles[target] = 'seeker';        /* つかまった人は鬼になって、いっしょに探す */
+  G.caught[target] = 1;
   hostBroadcast();
   applyState();
   if (aliveHiders() === 0) hostFinish('seeker');
@@ -2856,13 +2979,28 @@ function applyTag(by, target) {
 /* =====================================================================
    9. 画面反映
 ===================================================================== */
+let _lastRole = null, _lastCaught = 0;
+function announceRole() {
+  const role = myRole();
+  const n = Object.keys(G.caught).length;
+  if (G.mode === 'online' && _lastRole === 'hider' && role === 'seeker') {
+    toast('つかまった！ こんどはあなたが鬼です', 4000);
+    playBang(0, 0.7);
+    if (paint.open) togglePaint();
+  } else if (G.mode === 'online' && role === 'hider' && n > _lastCaught) {
+    toast('仲間がつかまりました（鬼 ' + (n + (G.settings.seekers || 1)) + '人）', 2600);
+  }
+  _lastRole = role; _lastCaught = n;
+}
+
 function applyState() {
+  announceRole();
   const role = myRole(), dead = amDead(), solo = G.mode === 'solo';
   $('phaseName').textContent = G.phase === 'prep' ? 'じゅんび' : G.phase === 'hunt' ? 'さがす' : '';
   $('timer').textContent = fmt(G.remain);
   const b = $('roleBadge');
   b.className = dead ? 'role-dead' : role === 'seeker' ? 'role-seeker' : 'role-hider';
-  b.textContent = dead ? 'みつかった' : role === 'seeker' ? '鬼' : solo ? 'かくれる（練習）' : 'かくれる';
+  b.textContent = role === 'seeker' ? (wasCaught() ? '鬼（つかまった）' : '鬼') : solo ? 'かくれる（練習）' : 'かくれる';
   $('aliveCount').textContent = aliveHiders();
   $('countBox').classList.toggle('hidden', solo);
   $('phaseBox').classList.toggle('hidden', solo);
@@ -2884,7 +3022,8 @@ function applyState() {
 function showResult() {
   if (!$('scResult').classList.contains('hidden')) return;
   $('resultTitle').textContent = G.winner === 'seeker' ? '鬼チームの勝ち！' : 'かくれチームの勝ち！';
-  $('resultSub').textContent = G.winner === 'seeker' ? '全員みつかりました' : aliveHiders() + '人が最後まで生きのこりました';
+  $('resultSub').textContent = G.winner === 'seeker'
+    ? '全員つかまって鬼になりました' : aliveHiders() + '人が最後まで逃げきりました';
   const box = $('resultList');
   box.innerHTML = '';
   net.players.forEach(function (p, id) {
@@ -2897,8 +3036,8 @@ function showResult() {
     row.appendChild(c);
     const nm = document.createElement('span'); nm.textContent = p.name; row.appendChild(nm);
     const rs = document.createElement('span'); rs.className = 'tagres';
-    rs.textContent = G.roles[id] === 'seeker' ? '鬼' : G.dead[id] ? 'みつかった' : 'にげきった🎉';
-    rs.style.color = G.roles[id] === 'seeker' ? '#ff9aa2' : G.dead[id] ? '#8a94a8' : '#8ee5a0';
+    rs.textContent = G.caught[id] ? 'つかまって鬼に' : G.roles[id] === 'seeker' ? '鬼' : 'にげきった🎉';
+    rs.style.color = G.caught[id] ? '#ffb46a' : G.roles[id] === 'seeker' ? '#ff9aa2' : '#8ee5a0';
     row.appendChild(rs);
     box.appendChild(row);
   });
@@ -2945,7 +3084,7 @@ net.on('hello', function () {
 net.on('state', function (s) {
   if (net.isHost) return;
   G.phase = s.phase; G.remain = s.remain; G.roles = s.roles || {};
-  G.dead = s.dead || {}; G.winner = s.winner; G.settings = s.settings || G.settings;
+  G.caught = s.caught || {}; G.winner = s.winner; G.settings = s.settings || G.settings;
   if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
     clearClones();
     buildMap(s.map);
@@ -3068,7 +3207,8 @@ function leaveToTitle() {
   remotes.clear();
   clearClones();
   net.leave();
-  G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.dead = {}; G.winner = null;
+  G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.caught = {}; G.winner = null;
+  _lastRole = null; _lastCaught = 0;
   show('scTitle');
   refreshNetState();
 }
@@ -3124,7 +3264,7 @@ $('btnLeave').onclick = function () {
 };
 $('btnAgain').onclick = function () {
   if (G.mode !== 'online') { leaveToTitle(); return; }
-  G.phase = 'lobby'; G.winner = null; G.roles = {}; G.dead = {};
+  G.phase = 'lobby'; G.winner = null; G.roles = {}; G.caught = {};
   if (net.isHost) hostBroadcast();
   $('hud').classList.add('hidden');
   paint.close();
@@ -3176,7 +3316,10 @@ function step(dt) {
   }
 
   /* --- 視点 --- */
-  if (paint.open) {
+  if (G.free && !paint.open) {
+    me.fyaw -= input.lookX;
+    me.fpitch = Math.max(-1.4, Math.min(1.4, me.fpitch + input.lookY));
+  } else if (paint.open) {
     paint.az -= input.lookX;
     paint.elev = Math.max(-1.45, Math.min(1.45, paint.elev + input.lookY));
   } else {
@@ -3186,9 +3329,9 @@ function step(dt) {
   input.lookX = input.lookY = 0;
 
   const frozen = false;
-  const ghost = G.mode === 'online' && amDead();
+  const ghost = false;
   const pose = POSES[me.pose];
-  const active = !paint.open && !frozen && G.phase !== 'result';
+  const active = !paint.open && !G.free && !frozen && G.phase !== 'result';
 
   /* Shift = 走る／張り付き解除、Space = 上がる、Ctrl = 下がる */
   const dashing = active && (keys.has('ShiftLeft') || keys.has('ShiftRight') || input.dash);
@@ -3215,6 +3358,27 @@ function step(dt) {
   me.svz += (tvz - me.svz) * acc;
   if (Math.hypot(me.svx, me.svz) < 0.05) { me.svx = 0; me.svz = 0; }
   else { mvx = me.svx * dt; mvz = me.svz * dt; moving = Math.hypot(me.svx, me.svz) > 0.4; }
+
+  /* --- フリーカメラ：自分はその場、カメラだけ飛ぶ --- */
+  if (G.free && !paint.open) {
+    const fast = (keys.has('ShiftLeft') || keys.has('ShiftRight') || input.dash) ? 2.6 : 1;
+    const sp = 6.0 * dt * fast;
+    const cp = Math.cos(me.fpitch);
+    const fx = Math.sin(me.fyaw) * cp, fz = Math.cos(me.fyaw) * cp;
+    me.fcam.x += (input.my * fx - input.mx * Math.cos(me.fyaw)) * sp;
+    me.fcam.z += (input.my * fz + input.mx * Math.sin(me.fyaw)) * sp;
+    me.fcam.y += (input.my * -Math.sin(me.fpitch)) * sp;
+    if (input.up || keys.has('Space')) me.fcam.y += sp;
+    if (input.down || keys.has('ControlLeft') || keys.has('ControlRight')) me.fcam.y -= sp;
+    me.fcam.y = Math.max(0.4, Math.min(CEIL_Y + 6, me.fcam.y));
+    /* 自分のまわりから離れすぎない（相手の偵察に使えないように） */
+    const dx = me.fcam.x - me.pos.x, dz = me.fcam.z - me.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > FREE_RANGE) {
+      me.fcam.x = me.pos.x + dx / d * FREE_RANGE;
+      me.fcam.z = me.pos.z + dz / d * FREE_RANGE;
+    }
+  }
 
   /* --- ペイント中：自分は動かさず、カメラだけ自由に飛ばす --- */
   if (paint.open) {
@@ -3287,21 +3451,24 @@ function step(dt) {
   myAvatar.setArmed(seeker);
   myAvatar.setPose(me.pos.x, me.pos.y, me.pos.z, me.yaw, moving, me.pose);
   myAvatar.update(dt, true);
-  myAvatar.setVisible(G.view === 1);
-  vmGun.visible = seeker && G.view === 0 && !paint.open;
+  myAvatar.setVisible(G.view === 1 || G.free);
+  vmGun.visible = seeker && G.view === 0 && !paint.open && !G.free;
   const iAmSeeker = myRole() === 'seeker' && !amDead();
   remotes.forEach(function (av, id) {
     const isSeek = G.roles[id] === 'seeker';
     av.setScale(isSeek ? SEEKER_SCALE : HIDER_SCALE);
     av.setArmed(isSeek);
     av.update(dt, false);
-    av.setVisible(!G.dead[id]);
-    av.marker.visible = av.exposed && iAmSeeker && !G.dead[id] && !isSeek;
+    av.setVisible(true);
+    av.marker.visible = av.exposed && iAmSeeker && !isSeek;
   });
 
   /* --- カメラ --- */
   const eyeY = (ghost ? 1.6 : pose.eye) * me.scale;
-  if (G.view === 0) {
+  if (G.free && !paint.open) {
+    camera.position.copy(me.fcam);
+    camera.rotation.set(-me.fpitch, me.fyaw + Math.PI, 0, 'YXZ');
+  } else if (G.view === 0) {
     camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
     /* three のカメラは自分の -Z を向くので、進行方向 (sin,cos) に合わせて 180 度ずらす */
     camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
