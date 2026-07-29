@@ -266,19 +266,21 @@ https://（あなたのユーザー名）.github.io/chameleon-kakurenbo/
 
 | やりたいこと | 場所 |
 |---|---|
-| マップの部屋わけ・家具 | `buildWorld()`（`chair` `table` `shelf` `sofa` `bench` `plant` `tree` などのヘルパあり） |
-| 床の色・模様 | `buildWorld()` 内の `floorTex` |
+| マップの追加・切りかえ | `MAPS` 配列と `buildMap()` |
+| 各マップの中身 | `buildSchool()` / `buildBackrooms()` / `buildOsaka()` |
+| 家具や壁を置くヘルパ | `box` `cyl` `sph` `flat` `wall` `floorAt` `desk` `schoolChair` `bookshelf` など（module 直下） |
 | 国旗 | `flagTexture()` / `flagBanner()` / `flagPole()` |
 | キャラの体型 | `PARTS`（頭は球、胴と手足はカプセル） |
 | 体の大きさ | `HIDER_SCALE`(0.8) / `SEEKER_SCALE`(1.2) |
 | 鬼の銃 | `makeGun()` |
 | ポーズと移動速度 | `POSES` |
-| めり込みの深さ・通報までの秒数 | `EMBED_DEPTH` / `EMBED_MIN`（0.30＝30%）/ `REVEAL_SEC`（10秒） |
+| めり込みの深さ・通報までの秒数 | `EMBED_DEPTH` / `EMBED_MIN`（0.10＝10%）/ `REVEAL_SEC`（10秒） |
 | 浮ける高さ・重力 | `CEIL_Y` / `GRAVITY` |
 | 見つける距離 | `ray.far`（初期値 26m） |
 | 口笛の間隔・印の表示時間 | `WHISTLE_EVERY`（10秒）/ `WHISTLE_SHOW`（1000ms） |
 | 銃声・口笛の音 | `playBang()` / `playWhistle()` |
 | 弾すじ | `spawnTracer()` |
+| ぶんしんの上限 | `MAX_CLONES`（3体） |
 | ペイントの解像度 | `SKIN_W` / `SKIN_H`（512×512。左半分＝正面／右半分＝背面） |
 
 マップは固定の乱数シード（`makeRng(20260610)`）から作っているので、
