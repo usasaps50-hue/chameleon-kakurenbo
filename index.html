@@ -102,15 +102,20 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #posePick button span{font-size:17px}
 @media (max-width:760px){ #posePick{right:62px;padding:5px;gap:4px}
   #posePick button{padding:7px 10px;font-size:12px} }
-#rightbtns{position:absolute;right:max(10px,env(safe-area-inset-right));top:56%;
-  transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+#rightbtns{position:absolute;z-index:4;right:max(10px,env(safe-area-inset-right));top:56%;
+  transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;pointer-events:auto;
+  /* 縦に入りきらないときは、左へもう1列ふやす（下の▲▼と重ならないように） */
+  flex-wrap:wrap-reverse;align-content:flex-start}
 .rb{width:54px;height:54px;border-radius:16px;background:#141924e6;border:1px solid #2c3444;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:18px;line-height:1}
 .rb i{font-style:normal;font-size:9px;color:#9aa4bb}
 .rb:active{background:#243046}
-.rb.small{width:40px;height:40px;font-size:14px;align-self:flex-end}
+.rb.small{width:40px;height:40px;font-size:14px}
+/* 退出ボタンは右上のすみへ。ほかのボタンから離しておく */
+#btnLeave{position:absolute;z-index:5;right:max(10px,env(safe-area-inset-right));
+  top:max(8px,env(safe-area-inset-top));pointer-events:auto}
 .rb.on{background:#2b5a35;border-color:#4c9a5e}
-#touch{position:absolute;inset:0;pointer-events:none}
+#touch{position:absolute;inset:0;z-index:4;pointer-events:none}
 /* touch-action は継承されないので、さわる物ぜんぶに付ける */
 #stick,#stickNub,#stickZone,.mv,.rb,#btnTag,#paintInner,#radar,.pBtn,.tool,.sw{
   touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
@@ -128,8 +133,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .mv.on{background:#2b5a35;border-color:#4c9a5e}
 #btnUp{right:max(20px,env(safe-area-inset-right));bottom:calc(max(30px,env(safe-area-inset-bottom)) + 74px)}
 #btnDown{right:max(20px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom))}
-#embedWarn{position:absolute;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 108px);
+#embedWarn{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 162px);
   background:#3a2a12ee;border:1px solid #c8922e;color:#ffd48a;font-size:12.5px;font-weight:700;
   padding:9px 16px;border-radius:12px;max-width:92vw;text-align:center;line-height:1.5}
 #embedWarn.danger{background:#3d1216ee;border-color:#e0435a;color:#ff9aa6}
@@ -137,24 +142,24 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   top:max(52px,calc(env(safe-area-inset-top) + 46px));
   background:#123a2aee;border:1px solid #3f9a5e;color:#a8f0c4;font-size:12px;font-weight:700;
   padding:7px 14px;border-radius:12px;max-width:92vw;text-align:center}
-#useTag{position:absolute;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 152px);
+#useTag{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 268px);
   background:#123a2aee;border:1px solid #4fd07a;color:#b6f5cf;font-size:12.5px;font-weight:700;
   padding:8px 15px;border-radius:12px;max-width:92vw;text-align:center}
-@media (min-width:761px){ #useTag{bottom:70px} }
+@media (min-width:761px) and (min-height:561px){ #useTag{bottom:112px} }
 #lockTag{position:absolute;left:50%;transform:translateX(-50%);
   top:max(52px,calc(env(safe-area-inset-top) + 46px));
   background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0;font-size:12px;font-weight:700;
   padding:7px 14px;border-radius:12px;white-space:nowrap}
-#clingTag{position:absolute;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 152px);
+#clingTag{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 268px);
   background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff;font-size:12px;font-weight:700;
   padding:6px 13px;border-radius:12px;white-space:nowrap}
-@media (min-width:761px){ #clingTag{bottom:70px} }
+@media (min-width:761px) and (min-height:561px){ #clingTag{bottom:112px} }
 #diag{position:absolute;left:8px;top:8px;z-index:60;background:#000000cc;color:#8ef0a8;
   font:11px/1.5 ui-monospace,monospace;padding:8px 10px;border-radius:8px;white-space:pre;
   pointer-events:none;max-width:70vw}
-@media (min-width:761px){ #embedWarn{bottom:26px} }
+@media (min-width:761px) and (min-height:561px){ #embedWarn{bottom:26px} }
 #btnTag{position:absolute;left:50%;transform:translateX(-50%);bottom:max(30px,env(safe-area-inset-bottom));
   padding:14px 26px;border-radius:16px;background:#8e2b34;border:1px solid #c4434f;
   font-weight:800;font-size:15px;pointer-events:auto}
@@ -194,14 +199,57 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #brushDot{border-radius:50%}
 .pHint{font-size:10.5px;color:#7d879c;line-height:1.5}
 
-@media (max-width:760px){
+/* せまい画面はボタンを小さく。よこ持ちは幅が広いので、高さでも判定する */
+@media (max-width:760px), (max-height:560px){
   #paintInner{width:136px;padding:7px;gap:5px}
   #swatches{grid-template-columns:repeat(5,1fr)}
   .pRow.btns{flex-wrap:wrap}
-  #rightbtns{top:auto;bottom:calc(env(safe-area-inset-bottom) + 178px);transform:none}
-  .rb{width:46px;height:46px;border-radius:14px;font-size:16px}
+  #rightbtns{top:auto;transform:none;gap:6px;
+    bottom:calc(env(safe-area-inset-bottom) + 172px);
+    max-height:calc(100% - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 230px)}
+  .rb{width:44px;height:44px;border-radius:13px;font-size:15px}
+  .rb i{font-size:8px}
+  .rb.small{width:38px;height:38px;font-size:13px}
 }
-@media (min-width:761px){ #btnTag{display:none} #embedWarn{bottom:26px} }
+/* よこ持ち。高さが足りないので、下のボタンを小さくして右の列は上に逃がす。
+   入りきらないぶんは wrap-reverse で左へもう1列できる */
+@media (max-height:560px){
+  /* よこ持ちはパネルの高さが足りないので、横に広げて行数をへらす */
+  #paintInner{width:224px;padding:7px;gap:4px}
+  #swatches{grid-template-columns:repeat(8,1fr);gap:3px}
+  #curColor{height:22px;font-size:9.5px}
+  .pHead b{font-size:12px}
+  .pBtn{padding:6px 6px;font-size:11.5px}
+  .pBtn.pick{padding:7px 6px;font-size:12px}
+  .pBtn.ghost{padding:5px;font-size:10.5px}
+  .pRow{font-size:10.5px}
+  .pRow.btns .tool,.pRow.btns .pBtn{padding:6px 3px;font-size:10.5px}
+  .pRow.zoomrow .pBtn{padding:5px 3px;font-size:13px}
+  .tool{padding:6px;font-size:10.5px}
+  #paintTip{display:none}
+  .rb{width:42px;height:42px}
+  #rightbtns{bottom:calc(env(safe-area-inset-bottom) + 126px);
+    max-height:calc(100% - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 172px)}
+  .mv{width:52px;height:52px;font-size:17px}
+  #btnUp{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 58px)}
+  #btnDown{bottom:max(14px,env(safe-area-inset-bottom))}
+  #btnTag{bottom:max(14px,env(safe-area-inset-bottom));padding:11px 22px;font-size:14px}
+  #stick{width:104px;height:104px;left:max(16px,env(safe-area-inset-left));
+    bottom:max(16px,env(safe-area-inset-bottom))}
+  #stickNub{width:44px;height:44px;margin:-22px 0 0 -22px}
+  /* よこ持ちでは右上がボタン列とぶつかるので、レーダーは左上へ。
+     ポーズの表示はそのすぐ右へどける */
+  #radar{width:74px;height:74px;right:auto;left:max(10px,env(safe-area-inset-left));
+    top:calc(max(6px,env(safe-area-inset-top)) + 40px)}
+  #poseTag{left:calc(max(10px,env(safe-area-inset-left)) + 82px);
+    top:calc(max(6px,env(safe-area-inset-top)) + 40px)}
+  #embedWarn{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px);
+    font-size:11.5px;padding:7px 13px;max-width:52vw;line-height:1.4}
+  #useTag,#clingTag{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 142px);
+    font-size:11.5px;padding:6px 12px;max-width:52vw}
+  #posePick{right:56px;top:auto;bottom:calc(env(safe-area-inset-bottom) + 126px);transform:none}
+}
+@media (min-width:761px) and (min-height:561px){ #btnTag{display:none} #embedWarn{bottom:26px} }
 </style>
 </head>
 <body>
@@ -220,15 +268,14 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   <div id="toast"></div>
   <div id="rightbtns">
     <button id="btnPaint" class="rb">🎨<i>ぬる</i></button>
-    <button id="btnPick"  class="rb">💧<i>スポイト</i></button>
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
     <div id="posePick" class="hidden"></div>
     <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnBoard" class="rb hidden">🎟️<i>のる</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
-    <button id="btnLeave" class="rb small">✕</button>
   </div>
+  <button id="btnLeave" class="rb small">✕</button>
   <div id="touch" class="hidden">
     <div id="stickZone"></div>
     <div id="stick"><div id="stickNub"></div></div>
@@ -3982,7 +4029,6 @@ canvasEl.addEventListener('wheel', function (e) {
 })();
 
 $('btnPaint').onclick = togglePaint;
-$('btnPick').onclick = function () { if (canPaint()) doPick(); else toast('いまはスポイトできません'); };
 (function () {                     /* ポーズは押すと一覧から選べる */
   const box = $('posePick');
   for (let i = 0; i < POSES.length; i++) {
@@ -4543,9 +4589,8 @@ function updateRideButtons() {
   const ut = $('useTag');
   if (si >= 0 && !me.ride) {
     ut.className = '';
-    ut.textContent = '🎢 ' + rides[si].name + ' のスイッチ — ' +
-      (isTouch ? '🎢ボタン' : 'E キー') + 'で' +
-      ((G.rideOn && G.rideOn[si]) ? 'とめる' : 'うごかす');
+    ut.textContent = '🎢 ' + rides[si].name + '：' + (isTouch ? '🎢ボタン' : 'E キー') +
+      'で' + ((G.rideOn && G.rideOn[si]) ? 'とめる' : 'うごかす');
   } else ut.className = 'hidden';
   /* 隠れ鬼は重力＋ジャンプなので、上下ボタンの意味が変わる */
   const oni = oniRule();
@@ -4745,7 +4790,6 @@ function applyState() {
   $('blind').style.display = 'none';
 
   $('btnPaint').classList.toggle('hidden', !canPaint());
-  $('btnPick').classList.toggle('hidden', !canPaint());
   $('btnTag').classList.toggle('hidden',
     !(isTouch && role === 'seeker' && !dead && (solo || G.phase === 'hunt')));
   $('phaseBox').classList.toggle('reveal', G.phase === 'reveal');
