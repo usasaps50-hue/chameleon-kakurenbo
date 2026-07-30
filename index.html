@@ -128,7 +128,6 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .mv.on{background:#2b5a35;border-color:#4c9a5e}
 #btnUp{right:max(20px,env(safe-area-inset-right));bottom:calc(max(30px,env(safe-area-inset-bottom)) + 74px)}
 #btnDown{right:max(20px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom))}
-#btnDash{right:calc(max(20px,env(safe-area-inset-right)) + 72px);bottom:max(30px,env(safe-area-inset-bottom))}
 #embedWarn{position:absolute;left:50%;transform:translateX(-50%);
   bottom:calc(max(30px,env(safe-area-inset-bottom)) + 108px);
   background:#3a2a12ee;border:1px solid #c8922e;color:#ffd48a;font-size:12.5px;font-weight:700;
@@ -138,6 +137,10 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   top:max(52px,calc(env(safe-area-inset-top) + 46px));
   background:#123a2aee;border:1px solid #3f9a5e;color:#a8f0c4;font-size:12px;font-weight:700;
   padding:7px 14px;border-radius:12px;max-width:92vw;text-align:center}
+#lockTag{position:absolute;left:50%;transform:translateX(-50%);
+  top:max(52px,calc(env(safe-area-inset-top) + 46px));
+  background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0;font-size:12px;font-weight:700;
+  padding:7px 14px;border-radius:12px;white-space:nowrap}
 #clingTag{position:absolute;left:50%;transform:translateX(-50%);
   bottom:calc(max(30px,env(safe-area-inset-bottom)) + 152px);
   background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff;font-size:12px;font-weight:700;
@@ -217,6 +220,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <div id="posePick" class="hidden"></div>
     <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
+    <button id="btnRide"  class="rb hidden">🎢<i>うごかす</i></button>
+    <button id="btnBoard" class="rb hidden">🎟️<i>のる</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
     <button id="btnLeave" class="rb small">✕</button>
   </div>
@@ -225,10 +230,10 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <div id="stick"><div id="stickNub"></div></div>
     <button id="btnUp" class="mv">▲<i>うく</i></button>
     <button id="btnDown" class="mv">▼<i>さがる</i></button>
-    <button id="btnDash" class="mv">≫<i>走る</i></button>
     <button id="btnTag">みつけた!</button>
   </div>
-  <div id="clingTag" class="hidden">🧲 くっついています — このまま止まれます（走るで はなれる）</div>
+  <div id="lockTag" class="hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
+  <div id="clingTag" class="hidden">🧲 くっついています — このまま止まれます（Shift／▼で はなれる）</div>
   <div id="embedWarn" class="hidden"></div>
   <div id="freeBanner" class="hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
   <div id="diag" class="hidden"></div>
@@ -278,6 +283,10 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <p class="sub">まっ白な体に絵をかいて、背景に溶けこめ。</p>
       <div class="joinrow" style="margin-bottom:4px">
         <select id="soloMap" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px"></select>
+        <select id="soloRule" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px">
+          <option value="hide">かくれんぼ</option>
+          <option value="oni">隠れ鬼</option>
+        </select>
       </div>
       <button class="big primary" id="btnSolo">ひとりで練習（お絵かき）</button>
       <button class="big" id="btnCreate">部屋をつくる</button>
@@ -313,6 +322,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <p class="sub">このコードを友だちに伝えてね</p>
       <div id="playerList"></div>
       <div class="settingsGrid" id="hostSettings">
+        <label>あそびかた<select id="setRule"><option value="hide">かくれんぼ</option><option value="oni">隠れ鬼</option></select></label>
         <label>マップ<select id="setMap"></select></label>
         <label>鬼の人数<select id="setSeekers"><option>1</option><option>2</option><option>3</option></select></label>
         <label>じゅんび<select id="setPrep"><option value="45">45秒</option><option value="60" selected>60秒</option><option value="90">90秒</option><option value="120">120秒</option></select></label>
@@ -682,6 +692,8 @@ function sandTex() {
    マップを切りかえるときは buildMap() がこれらを差しかえる。
 ===================================================================== */
 let group = null, solids = null, blockers = null, animators = null, TEX = null, rng = null;
+/* 動くアトラクション。buildMap で作りなおす。中身は { name, seats:[], step(dt) } */
+let rides = null;
 
   function addSolid(x, z, sx, sz, top, ry, y0) {
     let ex, ez;
@@ -690,7 +702,9 @@ let group = null, solids = null, blockers = null, animators = null, TEX = null, 
       ez = Math.abs(Math.sin(ry)) * sx / 2 + Math.abs(Math.cos(ry)) * sz / 2;
     } else { ex = sx / 2; ez = sz / 2; }
     /* y0 = 下端。宙にある物（建物の2階など）の下はくぐれる */
-    solids.push({ x0: x - ex, z0: z - ez, x1: x + ex, z1: z + ez, top: top, y0: y0 || 0 });
+    const s = { x0: x - ex, z0: z - ez, x1: x + ex, z1: z + ez, top: top, y0: y0 || 0 };
+    solids.push(s);
+    return s;      /* 動くアトラクションは、これを毎フレーム書きかえる */
   }
   function box(x, y, z, sx, sy, sz, color, ry, noSolid) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(color));
@@ -2266,41 +2280,89 @@ function buildAmusement() {
     box(11.5, 2.6, 24, 4.4, 0.5, 3.4, BLU, 0, false, 2.6);
   })();
 
-  /* ---------- メリーゴーラウンド（止まっている） ---------- */
+  /* ---------- メリーゴーラウンド（ボタンで回る・乗れる） ---------- */
   (function carousel() {
     const cx = -16, cz = 4;
-    cyl(cx, 0, cz, 6.6, 0.8, '#e8d8ba', 32);
-    cyl(cx, 0.8, cz, 5.6, 0.5, PINK, 32);
-    cyl(cx, 1.3, cz, 0.4, 6.4, YEL, 14);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(6.8, 3.2, 18),
-      new THREE.MeshLambertMaterial({ map: stripeTex(BLU, WHT, 18) }));
-    roof.position.set(cx, 9.3, cz);
-    group.add(roof);
-    addSolid(cx, cz, 13, 13, 8.0, 0, 7.7);        /* 屋根の下はくぐれる */
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.9, 10), mat(YEL));
-    cone.position.set(cx, 11.3, cz); group.add(cone);
+    cyl(cx, 0, cz, 6.6, 0.8, '#e8d8ba', 32);            /* 土台。ここは回らない */
+
+    /* ここから上がまとめて回る */
+    const spin = new THREE.Group();
+    spin.position.set(cx, 0, cz);
+    group.add(spin);
+    function spun(geo, color, x, y, z, tex) {
+      const m = new THREE.Mesh(geo, tex ? new THREE.MeshLambertMaterial({ map: tex }) : mat(color));
+      m.position.set(x, y, z);
+      spin.add(m);
+      return m;
+    }
+    spun(new THREE.CylinderGeometry(5.6, 5.6, 0.5, 32), PINK, 0, 1.05, 0);        /* 床 */
+    spun(new THREE.CylinderGeometry(0.4, 0.4, 6.4, 14), YEL, 0, 4.5, 0);          /* 中心の柱 */
+    spun(new THREE.ConeGeometry(6.8, 3.2, 18), null, 0, 9.3, 0, stripeTex(BLU, WHT, 18));
+    spun(new THREE.ConeGeometry(0.45, 0.9, 10), YEL, 0, 11.3, 0);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
-      cyl(cx + Math.cos(a) * 5.6, 1.3, cz + Math.sin(a) * 5.6, 0.14, 6.4, YEL, 8);
+      spun(new THREE.CylinderGeometry(0.14, 0.14, 6.4, 8), YEL,
+        Math.cos(a) * 5.6, 4.5, Math.sin(a) * 5.6);
     }
-    /* 木馬（乗れる・かげに隠れられる） */
+    /* 回る床と屋根。どちらも円なので、判定は動かさなくて合っている */
+    addSolid(cx, cz, 11.2, 11.2, 1.3, 0, 0.8);
+    addSolid(cx, cz, 13, 13, 8.0, 0, 7.7);              /* 屋根の下はくぐれる */
+
+    /* 木馬（乗れる・上下にはねる） */
     const hc = [RED, WHT, YEL, GRN, BLU, PINK];
+    const horses = [], seats = [];
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      const hx = cx + Math.cos(a) * 3.6, hz = cz + Math.sin(a) * 3.6;
-      const g2 = furn(hx, hz, a);
-      part(g2, 0, 1.3, 0, 1.5, 0.75, 0.62, hc[i]);
-      part(g2, 0.55, 1.85, 0, 0.5, 0.6, 0.5, hc[i]);          /* 頭 */
-      part(g2, -0.6, 1.75, 0, 0.18, 0.7, 0.42, '#f2ead0');     /* しっぽ */
+      const g2 = new THREE.Group();
+      g2.position.set(Math.cos(a) * 3.6, 0, Math.sin(a) * 3.6);
+      g2.rotation.y = -a;
+      spin.add(g2);
+      part(g2, 0, 1.3, 0, 1.5, 0.75, 0.62, hc[i]);              /* 胴 */
+      part(g2, 0.55, 1.85, 0, 0.5, 0.6, 0.5, hc[i]);            /* 頭 */
+      part(g2, -0.6, 1.75, 0, 0.18, 0.7, 0.42, '#f2ead0');      /* しっぽ */
       for (const sx of [-0.45, 0.45]) for (const sz of [-0.2, 0.2]) {
-        part(g2, sx, 0.8, sz, 0.16, 0.5, 0.16, hc[i]);
+        part(g2, sx, 0.8, sz, 0.16, 0.5, 0.16, hc[i]);          /* 足 */
       }
-      cyl(hx, 1.3, hz, 0.07, 4.5, '#cfd5db', 6, true);
-      addSolid(hx, hz, 1.7, 1.0, 2.1, a, 0);
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.5, 6), mat('#cfd5db'));
+      bar.position.set(0, 3.55, 0); g2.add(bar);
+      horses.push({ g: g2, a: a, sol: addSolid(cx + Math.cos(a) * 3.6, cz + Math.sin(a) * 3.6, 1.7, 1.0, 2.1, a, 1.3) });
+      seats.push({ pos: new THREE.Vector3(), yaw: null, name: '木馬' });
     }
+
+    let rot = 0;
+    rides.push({
+      name: 'かいてんもくば',
+      boardZone: { x: cx, z: cz + 7.4, r: 4.2, y: 1.3 },
+      seats: seats,
+      step: function (dt, on) {
+        if (on) rot += dt * 0.42;
+        spin.rotation.y = rot;
+        for (let i = 0; i < horses.length; i++) {
+          const h = horses[i];
+          const bob = on ? Math.sin(rot * 3 + i * 1.05) * 0.34 : 0;
+          h.g.position.y = bob;
+          const a = h.a + rot;
+          const hx = cx + Math.cos(a) * 3.6, hz = cz + Math.sin(a) * 3.6;
+          /* 判定は向きぶん広げた四角で近づける（回っているので毎フレーム作りなおす） */
+          const ex = Math.abs(Math.cos(a)) * 0.85 + Math.abs(Math.sin(a)) * 0.5;
+          const ez = Math.abs(Math.sin(a)) * 0.85 + Math.abs(Math.cos(a)) * 0.5;
+          h.sol.x0 = hx - ex; h.sol.x1 = hx + ex;
+          h.sol.z0 = hz - ez; h.sol.z1 = hz + ez;
+          h.sol.y0 = 1.3 + bob; h.sol.top = 2.1 + bob;
+          seats[i].pos.set(hx, 2.05 + bob, hz);
+          seats[i].yaw = -a + Math.PI / 2;
+        }
+      }
+    });
+
+    /* 乗り場 */
+    box(cx, 0, cz + 7.4, 5.4, 1.3, 3.2, '#e8d8ba');
+    box(cx - 3.0, 0, cz + 7.4, 0.6, 0.7, 3.2, '#d8cbb0');
+    flat(cx, 3.0, cz + 9.1, 5, 1.2, 0, 0, parkSignTex('かいてんもくば', PINK, '#3a2a10'));
+    box(cx, 1.3, cz + 9.3, 5.2, 1.4, 0.25, PINK, 0, false, 1.3);
   })();
 
-  /* ---------- 観覧車（止まっている・上まで登れる） ---------- */
+  /* ---------- 観覧車（ボタンで回る・乗れる・上まで登れる） ---------- */
   (function ferris() {
     const cx = 16, cz = -8, CY = 13.5, RAD = 11;
     /* 支柱 */
@@ -2313,41 +2375,67 @@ function buildAmusement() {
       }
       addSolid(cx + s * 3.6, cz, 1.4, 7.2, CY, 0, 0);
     }
-    /* 車輪 */
+    /* 車輪（回る） */
+    const spin = new THREE.Group();
+    spin.position.set(cx, CY, cz);
+    group.add(spin);
     for (const t of [-1, 1]) {
       const rim = new THREE.Mesh(new THREE.TorusGeometry(RAD, 0.42, 10, 44), mat(RED));
-      rim.position.set(cx, CY, cz + t * 1.1);
-      group.add(rim);
+      rim.position.set(0, 0, t * 1.1);
+      spin.add(rim);
     }
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.6, 16), mat(YEL));
-    hub.rotation.x = Math.PI / 2; hub.position.set(cx, CY, cz);
-    group.add(hub);
+    hub.rotation.x = Math.PI / 2;
+    spin.add(hub);
 
     const cc = [BLU, YEL, GRN, PINK, WHT, RED];
     const N = 12;
+    const gons = [], seats = [];
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const gx = cx + Math.cos(a) * RAD, gy = CY + Math.sin(a) * RAD;
-      /* スポーク */
+      /* スポーク（車輪といっしょに回る） */
       for (const t of [-1, 1]) {
         const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, RAD, 6), mat(YEL));
-        sp.position.set(cx + Math.cos(a) * RAD / 2, CY + Math.sin(a) * RAD / 2, cz + t * 1.1);
+        sp.position.set(Math.cos(a) * RAD / 2, Math.sin(a) * RAD / 2, t * 1.1);
         sp.rotation.z = a - Math.PI / 2;
-        group.add(sp);
+        spin.add(sp);
       }
-      /* ゴンドラ（床・背・屋根。中に入って隠れられる） */
+      /* ゴンドラ。車輪とは別に持っていて、回ってもいつも上を向いている */
       const col = cc[i % cc.length];
-      const gy0 = gy - 1.9;
-      box(gx, gy0, cz, 2.2, 0.18, 2.2, '#e6e2d6', 0, false, gy0);          /* 床 */
-      box(gx, gy0 + 0.18, cz - 1.0, 2.2, 1.5, 0.2, col, 0, true);
-      box(gx, gy0 + 0.18, cz + 1.0, 2.2, 1.5, 0.2, col, 0, true);
-      box(gx - 1.0, gy0 + 0.18, cz, 0.2, 1.5, 2.2, col, 0, true);
-      box(gx + 1.0, gy0 + 0.18, cz, 0.2, 1.5, 2.2, col, 0, true);
-      box(gx, gy0 + 1.9, cz, 2.5, 0.16, 2.5, col, 0, true);                 /* 屋根 */
-      addSolid(gx, cz, 2.4, 2.4, gy0 + 0.18, 0, gy0);
-      cyl(gx, gy0 + 1.68, cz, 0.07, 0.5, '#cfd5db', 6, true);
+      const g2 = new THREE.Group();
+      group.add(g2);
+      part(g2, 0, 0, 0, 2.2, 0.18, 2.2, '#e6e2d6');                 /* 床 */
+      part(g2, 0, 0.18, -1.0, 2.2, 1.5, 0.2, col);                  /* かこい */
+      part(g2, 0, 0.18, 1.0, 2.2, 1.5, 0.2, col);
+      part(g2, -1.0, 0.18, 0, 0.2, 1.5, 2.2, col);
+      part(g2, 1.0, 0.18, 0, 0.2, 1.5, 2.2, col);
+      part(g2, 0, 1.9, 0, 2.5, 0.16, 2.5, col);                     /* 屋根 */
+      part(g2, 0, 2.06, 0, 0.1, 0.5, 0.1, '#cfd5db');               /* つりさげ棒 */
+      gons.push({ g: g2, a: a, sol: addSolid(cx, cz, 2.4, 2.4, 1, 0, 0) });
+      seats.push({ pos: new THREE.Vector3(), yaw: null, name: 'ゴンドラ' });
     }
-    /* 乗り場（ここから浮いて登る） */
+
+    let rot = 0;
+    rides.push({
+      name: 'かんらんしゃ',
+      boardZone: { x: cx, z: cz + 9.5, r: 4.6, y: 1.2 },
+      seats: seats,
+      step: function (dt, on) {
+        if (on) rot += dt * 0.17;
+        spin.rotation.z = rot;
+        for (let i = 0; i < gons.length; i++) {
+          const g = gons[i], a = g.a + rot;
+          const gx = cx + Math.cos(a) * RAD, gy = CY + Math.sin(a) * RAD;
+          const fy = gy - 1.9;                      /* 床の高さ */
+          g.g.position.set(gx, fy, cz);
+          g.sol.x0 = gx - 1.2; g.sol.x1 = gx + 1.2;
+          g.sol.y0 = fy; g.sol.top = fy + 0.18;
+          seats[i].pos.set(gx, fy + 0.18, cz);
+        }
+      }
+    });
+
+    /* 乗り場（ここから浮いて登ることもできる） */
     box(cx, 0, cz + 9.5, 8, 1.2, 4, '#e8d8ba');
     box(cx - 4.2, 1.2, cz + 9.5, 0.3, 1.2, 4, '#cfd5db', 0, false, 1.2);
     box(cx + 4.2, 1.2, cz + 9.5, 0.3, 1.2, 4, '#cfd5db', 0, false, 1.2);
@@ -2355,35 +2443,208 @@ function buildAmusement() {
     box(cx, 1.2, cz + 11.6, 5.2, 1.4, 0.25, YEL, 0, false, 1.2);
   })();
 
-  /* ---------- ジェットコースター（止まっている） ---------- */
+  /* ---------- ジェットコースター（ひと周ぶんの線路・ボタンで走る・乗れる） ---------- */
   (function coaster() {
-    const cx = 0, cz = -20;
-    const loop = new THREE.Mesh(new THREE.TorusGeometry(6.5, 0.5, 10, 40), mat(BLU));
-    loop.position.set(cx, 8, cz);
-    group.add(loop);
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      cyl(cx + Math.cos(a) * 6.0, 0, cz + 2.2, 0.3, 8, WHT, 8);
+    /* --- 線路の中心線。駅→巻きあげ→急降下→バンクカーブ→たて回転→山ふたつ→駅 --- */
+    const P = [];
+    function pt(x, y, z) { P.push(new THREE.Vector3(x, y, z)); }
+    /** まっすぐ。hill を入れると途中がふくらんで山になる（終点は次の区間が出す） */
+    function seg(x0, y0, z0, x1, y1, z1, n, hill) {
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        pt(x0 + (x1 - x0) * t,
+          y0 + (y1 - y0) * t + (hill || 0) * Math.sin(Math.PI * t),
+          z0 + (z1 - z0) * t);
+      }
     }
-    const pts = [
-      new THREE.Vector3(cx - 20, 2.5, cz + 7), new THREE.Vector3(cx - 14, 8, cz + 4),
-      new THREE.Vector3(cx - 8, 4, cz + 1.5), new THREE.Vector3(cx - 3, 7.5, cz - 1),
-      new THREE.Vector3(cx, 8, cz - 1.5)
-    ];
-    const tube = new THREE.Mesh(
-      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.42, 8, false), mat(BLU));
-    group.add(tube);
-    pts.forEach(function (p) {
-      cyl(p.x, 0, p.z, 0.24, p.y, WHT, 8);
+    function arc(ax, az, r, a0, a1, y0, y1, n, hill) {
+      for (let i = 0; i < n; i++) {
+        const t = i / n, a = a0 + (a1 - a0) * t;
+        pt(ax + Math.cos(a) * r,
+          y0 + (y1 - y0) * t + (hill || 0) * Math.sin(Math.PI * t),
+          az + Math.sin(a) * r);
+      }
+    }
+    /** たて回転。進行方向 (dx,dz) をふくむ鉛直面の中をひと回りする（出入口は同じ場所） */
+    function vloop(x0, z0, dx, dz, r, yBot, n) {
+      for (let i = 0; i < n; i++) {
+        const th = (i / n) * Math.PI * 2;
+        pt(x0 + dx * Math.sin(th) * r, yBot + r - Math.cos(th) * r, z0 + dz * Math.sin(th) * r);
+      }
+    }
+    const ZB = -32, ZT = -14, TR = 9, CZ = ZB + TR;
+    const ST = [-19, 3.0, ZB];                     /* 駅のまんなか */
+    seg(-24, 3.0, ZB, -13, 3.0, ZB, 9);            /* 駅 */
+    seg(-13, 3.0, ZB, 2, 19.4, ZB, 17);            /* 巻きあげ */
+    seg(2, 19.4, ZB, 11, 3.8, ZB, 12);             /* 急降下 */
+    seg(11, 3.8, ZB, 16, 3.6, ZB, 5);
+    arc(16, CZ, TR, -Math.PI / 2, 0, 3.6, 7.8, 11);        /* 右カーブ（上り） */
+    arc(16, CZ, TR, 0, Math.PI / 2, 7.8, 4.0, 11);         /* 右カーブ（下り） */
+    seg(16, 4.0, ZT, 12, 3.6, ZT, 4);
+    vloop(12, ZT, -1, 0, 5.0, 3.6, 46);                    /* たて回転 */
+    seg(12, 3.6, ZT, 8, 4.2, ZT, 4);
+    seg(8, 4.2, ZT, -3, 4.4, ZT, 14, 7.6);                 /* 山その1 */
+    seg(-3, 4.4, ZT, -14, 3.8, ZT, 14, 5.4);               /* 山その2 */
+    seg(-14, 3.8, ZT, -24, 3.4, ZT, 8);
+    arc(-24, CZ, TR, Math.PI / 2, Math.PI * 1.5, 3.4, 3.0, 20);   /* 左カーブ */
+
+    const curve = new THREE.CatmullRomCurve3(P, true, 'catmullrom', 0.5);
+    const LEN = curve.getLength();
+    const SEGN = 460;
+    const pts = curve.getPoints(SEGN);
+    const fr = curve.computeFrenetFrames(SEGN, true);
+    /* three の枠は「ねじれが最小になる向き」でつながっているので、
+       駅のところで上を向いている側をえらべば、たて回転でも自然に一回転する */
+    let ups = fr.normals, sgn = 1;
+    if (Math.abs(fr.binormals[0].y) > Math.abs(fr.normals[0].y)) ups = fr.binormals;
+    if (ups[0].y < 0) sgn = -1;
+    const UP = [], SIDE = [];
+    for (let i = 0; i <= SEGN; i++) {
+      const u = ups[i].clone().multiplyScalar(sgn).normalize();
+      UP.push(u);
+      SIDE.push(new THREE.Vector3().crossVectors(fr.tangents[i], u).normalize());
+    }
+    /** その場の「上」と「横」（u は 0..1、円周にそった長さの割合） */
+    function frameAt(u) {
+      const f = ((u % 1) + 1) % 1 * SEGN;
+      const i = Math.min(SEGN, Math.floor(f));
+      return { up: UP[i], side: SIDE[i] };
+    }
+
+    /* --- レール2本・まくらぎ・けた --- */
+    const railL = [], railR = [];
+    for (let i = 0; i <= SEGN; i++) {
+      railL.push(pts[i].clone().addScaledVector(SIDE[i], 0.78));
+      railR.push(pts[i].clone().addScaledVector(SIDE[i], -0.78));
+    }
+    for (const r of [railL, railR]) {
+      const c2 = new THREE.CatmullRomCurve3(r, true, 'catmullrom', 0.5);
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(c2, SEGN, 0.15, 6, true), mat('#e0455a')));
+    }
+    const spine = [];
+    for (let i = 0; i <= SEGN; i++) spine.push(pts[i].clone().addScaledVector(UP[i], -0.52));
+    group.add(new THREE.Mesh(new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3(spine, true, 'catmullrom', 0.5), SEGN, 0.26, 6, true), mat('#4a8fd0')));
+    const tieGeo = new THREE.BoxGeometry(0.14, 0.62, 1.86);
+    const tieMat = mat('#cfd5db');
+    for (let i = 0; i < SEGN; i += 4) {
+      const m = new THREE.Mesh(tieGeo, tieMat);
+      m.matrixAutoUpdate = false;
+      m.matrix.makeBasis(fr.tangents[i], UP[i], SIDE[i]);
+      m.matrix.setPosition(pts[i].clone().addScaledVector(UP[i], -0.26));
+      group.add(m);
+    }
+
+    /* --- 支柱（線路の下から地面まで）。逆さの区間は立てない --- */
+    for (let i = 0; i < SEGN; i += 13) {
+      const p = pts[i];
+      if (UP[i].y < 0.55) continue;
+      const h = p.y - 0.85;
+      if (h < 1.2) continue;
+      if (Math.abs(p.x - ST[0]) < 6 && Math.abs(p.z - ZB) < 3) continue;   /* 駅の中は避ける */
+      cyl(p.x, 0, p.z, 0.19, h, '#e8e4d8', 8);
+      if (h > 6) {                                    /* 高いところは筋交いを足す */
+        const br = new THREE.Mesh(new THREE.BoxGeometry(0.14, h * 0.9, 0.14), mat('#e8e4d8'));
+        br.position.set(p.x, h * 0.5, p.z + 1.1);
+        br.rotation.x = 0.22;
+        group.add(br);
+      }
+    }
+
+    /* --- 駅（ホームから乗る） --- */
+    box(ST[0], 0, ZB + 2.6, 13, 2.6, 3.4, '#e8d8ba');
+    box(ST[0], 2.6, ZB + 4.2, 13, 1.1, 0.3, RED, 0, false, 2.6);
+    for (let i = 0; i < 4; i++) {                          /* 階段 */
+      box(ST[0] - 8.4 + i * 0.85, 0, ZB + 2.6, 0.85, 0.65 + i * 0.65, 3.4, '#d8cbb0');
+    }
+    for (const sx of [-5.5, 0, 5.5]) {                     /* 屋根 */
+      cyl(ST[0] + sx, 2.6, ZB + 4.0, 0.13, 3.0, '#cfd5db', 8);
+    }
+    const stRoof = new THREE.Mesh(new THREE.BoxGeometry(13.6, 0.22, 4.6),
+      new THREE.MeshLambertMaterial({ map: stripeTex(RED, WHT, 12) }));
+    stRoof.position.set(ST[0], 5.7, ZB + 2.8);
+    group.add(stRoof);
+    addSolid(ST[0], ZB + 2.8, 13.6, 4.6, 5.9, 0, 5.6);
+    flat(ST[0], 6.6, ZB + 5.15, 8, 1.5, 0, 0, parkSignTex('ジェットコースター', RED, '#fff'));
+    box(ST[0], 5.9, ZB + 5.3, 8.2, 1.7, 0.25, RED, 0, false, 5.9);
+
+    /* --- 車両（3両つなぎ） --- */
+    const CARS = 3, CARGAP = 2.5;
+    const cars = [], seats = [];
+    for (let i = 0; i < CARS; i++) {
+      const g2 = new THREE.Group();
+      g2.matrixAutoUpdate = false;
+      group.add(g2);
+      const col = i === 0 ? YEL : RED;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.9, 1.6), mat(col));
+      body.position.set(0, 0.62, 0); g2.add(body);
+      /* 背もたれと安全バーは、乗っている人の目より下におさめる
+         （高くすると一人称のカメラがふさがれて何も見えなくなる） */
+      const seatBk = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.72, 1.5), mat('#3a3f46'));
+      seatBk.position.set(-0.9, 1.16, 0); g2.add(seatBk);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 1.35), mat('#cfd5db'));
+      bar.position.set(0.5, 1.1, 0); g2.add(bar);
+      if (i === 0) {                                   /* 先頭はとがらせる */
+        const nose = new THREE.Mesh(new THREE.ConeGeometry(0.62, 1.1, 4), mat(col));
+        nose.rotation.z = -Math.PI / 2; nose.rotation.y = Math.PI / 4;
+        nose.position.set(1.55, 0.62, 0); g2.add(nose);
+      }
+      for (const wz of [-0.85, 0.85]) for (const wx of [-0.7, 0.7]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.14, 10), mat('#2b3038'));
+        w.rotation.x = Math.PI / 2; w.position.set(wx, 0.1, wz); g2.add(w);
+      }
+      cars.push(g2);
+      seats.push({ pos: new THREE.Vector3(), yaw: 0, name: (i + 1) + '両目' });
+    }
+    const carSol = addSolid(ST[0], ZB, 2.4, 2.4, 1, 0, 0);
+
+    let u = 0, v = 6, yTop = 19.4;
+    const m4 = new THREE.Matrix4(), tmpT = new THREE.Vector3(), tmpP = new THREE.Vector3();
+    /* 駅にとまっている u をさがしておく（止めたときはここに戻す） */
+    let uStation = 0;
+    {
+      let best = 1e9;
+      for (let i = 0; i <= 200; i++) {
+        const p = curve.getPointAt(i / 200);
+        const d = Math.hypot(p.x - ST[0], p.z - ZB);
+        if (d < best && p.y < 5) { best = d; uStation = i / 200; }
+      }
+      u = uStation;
+    }
+    rides.push({
+      name: 'ジェットコースター',
+      boardZone: { x: ST[0], z: ZB + 2.6, r: 7.5, y: 2.6 },
+      exitAt: { x: ST[0], y: 2.6, z: ZB + 2.6 },       /* 降りたら駅にもどす */
+      seats: seats,
+      step: function (dt, on) {
+        if (on) {
+          /* 高いところではおそく、低いところでは速く（位置エネルギー→速さ） */
+          const y = curve.getPointAt(u).y;
+          v = Math.max(4.0, Math.sqrt(Math.max(1, 2 * 14 * (yTop + 0.4 - y))));
+          u = (u + v * dt / LEN) % 1;
+        }
+        for (let i = 0; i < CARS; i++) {
+          const cu = ((u - i * CARGAP / LEN) % 1 + 1) % 1;
+          curve.getPointAt(cu, tmpP);
+          curve.getTangentAt(cu, tmpT);
+          const f = frameAt(cu);
+          m4.makeBasis(tmpT, f.up, f.side);
+          m4.setPosition(tmpP.x + f.up.x * 0.55, tmpP.y + f.up.y * 0.55, tmpP.z + f.up.z * 0.55);
+          cars[i].matrix.copy(m4);
+          seats[i].pos.set(tmpP.x + f.up.x * 1.05, tmpP.y + f.up.y * 1.05, tmpP.z + f.up.z * 1.05);
+          seats[i].yaw = Math.atan2(tmpT.x, tmpT.z);
+          seats[i].upY = f.up.y;
+        }
+        /* 走っているあいだは車両の当たり判定をどけておく（はね飛ばされないように） */
+        if (on) { carSol.y0 = 9999; }
+        else {
+          const p = seats[0].pos;
+          carSol.x0 = p.x - 3.6; carSol.x1 = p.x + 3.6;
+          carSol.z0 = p.z - 3.6; carSol.z1 = p.z + 3.6;
+          carSol.y0 = p.y - 1.0; carSol.top = p.y - 0.05;
+        }
+      }
     });
-    /* コースターの車両（止まっている・中に隠れられる） */
-    const car = furn(cx - 20, cz + 7, 0.35);
-    for (let i = 0; i < 3; i++) {
-      part(car, 0, 2.3, -i * 1.6, 1.5, 0.9, 1.4, i ? RED : YEL);
-      part(car, 0, 3.2, -i * 1.6, 1.3, 0.3, 1.2, '#3a3f46');
-    }
-    addSolid(cx - 20, cz + 7, 1.8, 5.2, 3.2, 0.35, 2.0);
-    box(cx - 20, 0, cz + 7, 2.4, 2.0, 5.6, '#cfd5db');       /* 乗り場の台 */
   })();
 
   /* ---------- 屋台・売店（中に入れる） ---------- */
@@ -2635,13 +2896,17 @@ function buildMap(idx) {
   matCache.clear();
   if (!amb) initLights();
   if (!TEX) initTextures();
-  group = new THREE.Group(); solids = []; blockers = []; animators = [];
+  group = new THREE.Group(); solids = []; blockers = []; animators = []; rides = [];
   scene.add(group);
   const spawns = MAPS[idx].build();
   buildWaitRoom();
-  world = { group: group, solids: solids, spawns: spawns, blockers: blockers, animators: animators };
+  world = { group: group, solids: solids, spawns: spawns, blockers: blockers,
+    animators: animators, rides: rides };
+  if (typeof me !== 'undefined') me.ride = null;
   G.ceilY = MAPS[idx].ceil || 6;
   G.map = idx;
+  if (!hasRides()) G.rideOn = false;
+  stepRides(0);            /* 座席と当たり判定を、動かす前に一度そろえておく */
   return world;
 }
 
@@ -3189,7 +3454,7 @@ Net.prototype.join = function (code, name) {
     self.channel = self.client.channel('mc-room-' + self.code, {
       config: { broadcast: { self: false, ack: false }, presence: { key: self.id } }
     });
-    const evs = ['pose', 'skin', 'state', 'tag', 'hello', 'shot', 'whistle', 'clone', 'cloneHit'];
+    const evs = ['pose', 'skin', 'state', 'tag', 'hello', 'shot', 'whistle', 'clone', 'cloneHit', 'ride'];
     for (let i = 0; i < evs.length; i++) {
       (function (ev) {
         self.channel.on('broadcast', { event: ev }, function (m) { self.emit(ev, m.payload); });
@@ -3271,17 +3536,23 @@ const G = {
   roles: {},
   caught: {},         /* つかまって鬼になった人 */
   winner: null,
-  settings: { seekers: 1, prep: 60, hunt: 180 },
+  settings: { seekers: 1, prep: 60, hunt: 180, rule: 'hide' },
+  rule: 'hide',       /* hide=かくれんぼ / oni=隠れ鬼（撃たれたら鬼を交代） */
   view: 0,            /* 0=一人称 1=三人称 */
   map: 0,             /* いまのマップ */
   ceilY: 6,           /* 浮ける高さ */
   caughtAt: {},       /* つかまった場所 */
   free: false,        /* フリーカメラ（自分は動かない） */
+  rideOn: false,      /* 遊園地のアトラクションが動いているか */
   soloRole: 'hider'   /* 練習モードでの役 */
 };
+/* 隠れ鬼のときは重力があってジャンプする（浮けない・張り付けない） */
+const oniRule = function () { return G.rule === 'oni'; };
+const ONI_PREP = 10;               /* 鬼が来るまで 10 秒 */
+const JUMP_V = 7.4;                /* ジャンプの初速 */
 const me = { pos: new THREE.Vector3(0, 0, 18), vel: new THREE.Vector3(), yaw: Math.PI, pitch: 0,
   onGround: true, pose: 0, exposure: 1, stuck: false, embedT: 0, exposed: false, scale: HIDER_SCALE, whistleT: Math.random() * 10, inWait: false,
-  svx: 0, svz: 0, camD: 3,
+  svx: 0, svz: 0, camD: 3, ride: null, rideYaw: 0, jumpHeld: false,
   fcam: new THREE.Vector3(), fyaw: 0, fpitch: 0.2 };
 
 buildMap(0);            /* G と me の宣言より後で呼ぶ必要がある */
@@ -3385,15 +3656,14 @@ function updateEmbedWarn() {
    6. 操作
 ===================================================================== */
 const keys = new Set();
-const input = { mx: 0, my: 0, lookX: 0, lookY: 0, up: false, down: false, dash: false, locked: false, stick: false };
+const input = { mx: 0, my: 0, lookX: 0, lookY: 0, up: false, down: false, locked: false, stick: false };
 const mouse = { x: 0, y: 0 };
 let releaseStick = null;
 /** 指やキーの取りこぼしで動きっぱなしになるのを防ぐ */
 function resetInput() {
   keys.clear();
   input.mx = 0; input.my = 0; input.lookX = 0; input.lookY = 0;
-  input.up = false; input.down = false; input.dash = false; input.stick = false;
-  $('btnDash').classList.remove('on');
+  input.up = false; input.down = false; input.stick = false;
   const u = $('btnUp'), d = $('btnDown');
   if (u) u.classList.remove('on');
   if (d) d.classList.remove('on');
@@ -3432,12 +3702,44 @@ addEventListener('keydown', function (e) {
     if (n >= 0 && n < POSES.length) { setPose(n); showPosePick(false); }
   }
   else if (e.code === 'KeyC') putClone();
+  else if (e.code === 'KeyE') toggleBoard();
+  else if (e.code === 'KeyT') toggleRides();
+  else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleMouseLock();
   else if (e.code === 'Digit5') toggleFree();
   else if (e.code === 'Escape' && paint.open) togglePaint();
 });
 addEventListener('keyup', function (e) { keys.delete(e.code); });
 
-addEventListener('mousemove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+/* --- パソコンで鬼のとき：Shift でマウスを画面に固定して、一人称でぐるぐる見まわす --- */
+function canLock() {
+  return !isTouch && !!canvasEl.requestPointerLock && G.mode !== 'menu' &&
+    myRole() === 'seeker' && !paint.open && !G.free;
+}
+function toggleMouseLock() {
+  if (input.locked) { document.exitPointerLock && document.exitPointerLock(); return; }
+  if (!canLock()) {
+    if (!isTouch && G.mode !== 'menu' && myRole() !== 'seeker')
+      toast('マウス固定は鬼のときだけです');
+    return;
+  }
+  /* ブラウザに断られることもあるので、そのときは理由を出す（例外でも Promise でも来る） */
+  try {
+    const pr = canvasEl.requestPointerLock();
+    if (pr && pr.catch) pr.catch(function () { toast('このブラウザではマウス固定が使えません'); });
+  } catch (e) { toast('このブラウザではマウス固定が使えません'); }
+}
+addEventListener('pointerlockchange', function () {
+  input.locked = document.pointerLockElement === canvasEl;
+  $('lockTag').className = input.locked ? '' : 'hidden';
+});
+addEventListener('mousemove', function (e) {
+  mouse.x = e.clientX; mouse.y = e.clientY;
+  /* 固定中は画面のはしを気にせず、動いたぶんだけ視点を回す */
+  if (input.locked) {
+    input.lookX += (e.movementX || 0) * 0.0022;
+    input.lookY += (e.movementY || 0) * 0.0022;
+  }
+});
 addEventListener('contextmenu', function (e) { if (G.mode !== 'menu') e.preventDefault(); });
 
 function onTap(x, y) {
@@ -3649,11 +3951,8 @@ function holdBtn(id, set) {
 }
 holdBtn('btnUp', function (v) { input.up = v; });
 holdBtn('btnDown', function (v) { input.down = v; });
-$('btnDash').addEventListener('pointerdown', function (e) {
-  e.preventDefault();
-  input.dash = !input.dash;
-  $('btnDash').classList.toggle('on', input.dash);
-});
+$('btnRide').onclick = function () { toggleRides(); };
+$('btnBoard').onclick = function () { toggleBoard(); };
 $('btnTag').onclick = function () { const c = viewCenter(); onTap(c.x, c.y); };
 $('toolPick').onclick = function () { doPick(); };
 
@@ -4048,6 +4347,86 @@ function putClone() {
 }
 
 /* =====================================================================
+   7.9 遊園地のアトラクション（スイッチで動かして、実際に乗る）
+   rides は buildMap で作りなおす。中身は
+     { name, boardZone:{x,z,r,y}, exitAt?, seats:[{pos,yaw,name}], step(dt,on) }
+===================================================================== */
+function hasRides() { return !!(rides && rides.length); }
+function stepRides(dt) {
+  if (!rides) return;
+  for (let i = 0; i < rides.length; i++) rides[i].step(dt, G.rideOn);
+}
+function rideYawLocked() {
+  if (!me.ride) return false;
+  const s = me.ride.ride.seats[me.ride.i];
+  return s.yaw !== null && s.yaw !== undefined;
+}
+function getOff(quiet) {
+  if (!me.ride) return;
+  const r = me.ride.ride;
+  me.ride = null; me.rideYaw = 0; me.vel.set(0, 0, 0);
+  if (r.exitAt) me.pos.set(r.exitAt.x, r.exitAt.y + 0.05, r.exitAt.z);
+  else me.pos.y += 0.08;
+  if (!quiet) toast('おりました');
+  updateRideButtons();
+}
+/** いちばん近い座席。乗り場の中にいれば、遠くの座席にも乗れる */
+function nearestSeat() {
+  if (!hasRides()) return null;
+  let best = null, bd = 1e9;
+  for (let k = 0; k < rides.length; k++) {
+    const r = rides[k], bz = r.boardZone;
+    const inZone = !!bz && Math.hypot(me.pos.x - bz.x, me.pos.z - bz.z) < bz.r &&
+      me.pos.y > (bz.y || 0) - 2.5 && me.pos.y < (bz.y || 0) + 4.5;
+    const lim = inZone ? 1e9 : 2.9;
+    for (let i = 0; i < r.seats.length; i++) {
+      const d = me.pos.distanceTo(r.seats[i].pos);
+      if (d < lim && d < bd) { best = { ride: r, i: i }; bd = d; }
+    }
+  }
+  return best;
+}
+function toggleBoard() {
+  if (me.ride) { getOff(); return; }
+  if (paint.open || G.free) { toast('ペイント／フリーカメラ中は のれません'); return; }
+  const b = nearestSeat();
+  if (!b) { toast('のれるアトラクションが近くにありません'); return; }
+  me.ride = b; me.rideYaw = 0; me.vel.set(0, 0, 0);
+  me.pos.copy(b.ride.seats[b.i].pos);
+  toast(b.ride.name + ' の ' + b.ride.seats[b.i].name + ' に のりました（もう一度おすと おりる）');
+  updateRideButtons();
+}
+function setRideOn(on, quiet) {
+  const was = G.rideOn;
+  G.rideOn = !!on;
+  if (!quiet && was !== G.rideOn) {
+    toast(G.rideOn ? '🎢 アトラクションが動きだしました！' : '🎢 アトラクションを止めました');
+    if (G.rideOn) playWhistle(0, 0.7);
+  }
+  updateRideButtons();
+}
+/** アトラクションと上下ボタンの見た目。乗る／降りるのたびに呼ぶ */
+function updateRideButtons() {
+  const rideMap = hasRides() && !me.inWait;
+  $('btnRide').classList.toggle('hidden', !rideMap);
+  $('btnRide').classList.toggle('on', G.rideOn);
+  $('btnRide').querySelector('i').textContent = G.rideOn ? 'とめる' : 'うごかす';
+  $('btnBoard').classList.toggle('hidden', !rideMap);
+  $('btnBoard').firstChild.nodeValue = me.ride ? '🚪' : '🎟️';
+  $('btnBoard').querySelector('i').textContent = me.ride ? 'おりる' : 'のる';
+  /* 隠れ鬼は重力＋ジャンプなので、上下ボタンの意味が変わる */
+  const oni = oniRule();
+  $('btnUp').firstChild.nodeValue = oni ? '⤒' : '▲';
+  $('btnUp').querySelector('i').textContent = oni ? 'ジャンプ' : 'うく';
+  $('btnDown').classList.toggle('hidden', oni);
+}
+function toggleRides() {
+  if (!hasRides()) { toast('このマップにアトラクションはありません'); return; }
+  setRideOn(!G.rideOn);
+  if (G.mode === 'online' && net.channel) net.send('ride', { on: G.rideOn ? 1 : 0 });
+}
+
+/* =====================================================================
    8. 進行（ホストが正）
 ===================================================================== */
 let hostTimer = null;
@@ -4069,14 +4448,21 @@ function hostBroadcast() {
 function hostStart() {
   clearClones();
   _lastRole = null; _lastCaught = 0;
+  G.rule = G.settings.rule === 'oni' ? 'oni' : 'hide';
   if ((G.settings.map || 0) !== G.map) buildMap(G.settings.map || 0);
   const ids = Array.from(net.players.keys());
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
   ids.sort(function () { return Math.random() - 0.5; });
-  const nSeek = Math.min(G.settings.seekers, ids.length - 1);
+  /* 隠れ鬼は鬼を交代していく遊びなので、鬼はいつも1人 */
+  const nSeek = oniRule() ? 1 : Math.min(G.settings.seekers, ids.length - 1);
   G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
-  for (let i = 0; i < ids.length; i++) G.roles[ids[i]] = i < nSeek ? 'seeker' : 'hider';
-  G.phase = 'prep'; G.remain = G.settings.prep;
+  for (let i = 0; i < ids.length; i++) {
+    G.roles[ids[i]] = i < nSeek ? 'seeker' : 'hider';
+    if (oniRule() && i < nSeek) G.caught[ids[i]] = 1;    /* 最初の鬼も1回に数える */
+  }
+  /* 隠れ鬼は 10 秒で鬼が来る。アトラクションも最初から動かしておく */
+  G.phase = 'prep'; G.remain = oniRule() ? ONI_PREP : G.settings.prep;
+  G.rideOn = oniRule() && hasRides();
   hostBroadcast();
   ensureHostTimer();
   return true;
@@ -4086,8 +4472,8 @@ function hostTick() {
   if (G.phase === 'prep' || G.phase === 'hunt' || G.phase === 'reveal') {
     G.remain -= 1;
     if (G.remain <= 0) {
-      if (G.phase === 'prep') { G.phase = 'hunt'; G.remain = G.settings.hunt; }
-      else if (G.phase === 'hunt') { hostFinish('hider'); return; }
+      if (G.phase === 'prep') { G.phase = 'hunt'; G.remain = G.settings.hunt; }   /* 鬼が出てくる */
+      else if (G.phase === 'hunt') { hostFinish(oniRule() ? 'oni' : 'hider'); return; }
       else {                                   /* 答え合わせ終わり */
         G.phase = 'result'; G.remain = 0;
         clearInterval(hostTimer); hostTimer = null;
@@ -4106,6 +4492,15 @@ function hostFinish(w) {
 function applyTag(by, target) {
   if (G.phase !== 'hunt') return;
   if (G.roles[by] !== 'seeker' || G.roles[target] !== 'hider') return;
+  if (oniRule()) {
+    /* 隠れ鬼：撃たれた人が鬼になり、撃った鬼はかくれる側に交代する */
+    G.roles[target] = 'seeker';
+    G.roles[by] = 'hider';
+    G.caught[target] = (G.caught[target] | 0) + 1;   /* 鬼になった回数 */
+    hostBroadcast();
+    applyState();
+    return;
+  }
   G.roles[target] = 'seeker';        /* つかまった人は鬼になって、いっしょに探す */
   G.caught[target] = 1;
   /* 答え合わせ用に「つかまった場所」を覚えておく */
@@ -4165,12 +4560,16 @@ function announceRole() {
   const role = myRole();
   const n = Object.keys(G.caught).length;
   if (G.mode === 'online' && _lastRole === 'hider' && role === 'seeker') {
-    toast('つかまった！ こんどはあなたが鬼です', 4000);
+    toast(oniRule() ? '撃たれた！ こんどはあなたが鬼です — 誰かを撃てば交代できます'
+      : 'つかまった！ こんどはあなたが鬼です', 4000);
     playBang(0, 0.7);
     if (paint.open) togglePaint();
-  } else if (G.mode === 'online' && role === 'hider' && n > _lastCaught) {
+  } else if (G.mode === 'online' && oniRule() && _lastRole === 'seeker' && role === 'hider') {
+    toast('鬼を交代しました！ 今度は逃げる番です', 3200);
+  } else if (G.mode === 'online' && !oniRule() && role === 'hider' && n > _lastCaught) {
     toast('仲間がつかまりました（鬼 ' + (n + (G.settings.seekers || 1)) + '人）', 2600);
   }
+  if (_lastRole && _lastRole !== role) getOff(true);
   _lastRole = role; _lastCaught = n;
 }
 
@@ -4180,6 +4579,7 @@ function applyState() {
   if (G.phase !== _lastPhase) {
     _lastPhase = G.phase;
     if (G.free) { G.free = false; $('btnFree').classList.remove('on'); }   /* 場面が変わったら解除 */
+    getOff(true);                    /* 乗りものから降ろす（待機部屋へ飛ぶので） */
     if (G.phase === 'reveal') {
       buildRevealGhosts();
       if (paint.open) togglePaint();
@@ -4213,15 +4613,26 @@ function applyState() {
   $('btnRole').classList.toggle('hidden', !solo);
   $('btnRole').firstChild.nodeValue = role === 'seeker' ? '🎨' : '👹';
   $('btnRole').querySelector('i').textContent = role === 'seeker' ? 'かくれる' : '鬼になる';
+
+  updateRideButtons();
   if (paint.open && !canPaint()) paint.close();
+  if (input.locked && !canLock() && document.exitPointerLock) document.exitPointerLock();
   if (G.phase === 'result') showResult();
 }
 
 function showResult() {
   if (!$('scResult').classList.contains('hidden')) return;
-  $('resultTitle').textContent = G.winner === 'seeker' ? '鬼チームの勝ち！' : 'かくれチームの勝ち！';
-  $('resultSub').textContent = G.winner === 'seeker'
-    ? '全員つかまって鬼になりました' : aliveHiders() + '人が最後まで逃げきりました';
+  if (G.winner === 'oni') {                    /* 隠れ鬼：時間切れのとき鬼だった人の負け */
+    const last = [];
+    net.players.forEach(function (p, id) { if (G.roles[id] === 'seeker') last.push(p.name); });
+    $('resultTitle').textContent = '時間切れ！';
+    $('resultSub').textContent = last.length
+      ? last.join('・') + ' が最後の鬼でした（負け）' : '鬼がいませんでした';
+  } else {
+    $('resultTitle').textContent = G.winner === 'seeker' ? '鬼チームの勝ち！' : 'かくれチームの勝ち！';
+    $('resultSub').textContent = G.winner === 'seeker'
+      ? '全員つかまって鬼になりました' : aliveHiders() + '人が最後まで逃げきりました';
+  }
   const box = $('resultList');
   box.innerHTML = '';
   net.players.forEach(function (p, id) {
@@ -4234,8 +4645,15 @@ function showResult() {
     row.appendChild(c);
     const nm = document.createElement('span'); nm.textContent = p.name; row.appendChild(nm);
     const rs = document.createElement('span'); rs.className = 'tagres';
-    rs.textContent = G.caught[id] ? 'つかまって鬼に' : G.roles[id] === 'seeker' ? '鬼' : 'にげきった🎉';
-    rs.style.color = G.caught[id] ? '#ffb46a' : G.roles[id] === 'seeker' ? '#ff9aa2' : '#8ee5a0';
+    if (oniRule()) {
+      const c = G.caught[id] | 0;
+      rs.textContent = G.roles[id] === 'seeker' ? '最後の鬼（負け）'
+        : c ? '鬼になった回数 ' + c : '一度も鬼にならず🎉';
+      rs.style.color = G.roles[id] === 'seeker' ? '#ff9aa2' : c ? '#ffb46a' : '#8ee5a0';
+    } else {
+      rs.textContent = G.caught[id] ? 'つかまって鬼に' : G.roles[id] === 'seeker' ? '鬼' : 'にげきった🎉';
+      rs.style.color = G.caught[id] ? '#ffb46a' : G.roles[id] === 'seeker' ? '#ff9aa2' : '#8ee5a0';
+    }
     row.appendChild(rs);
     box.appendChild(row);
   });
@@ -4285,6 +4703,7 @@ net.on('state', function (s) {
   G.phase = s.phase; G.remain = s.remain; G.roles = s.roles || {};
   G.caught = s.caught || {}; G.caughtAt = s.caughtAt || {};
   G.winner = s.winner; G.settings = s.settings || G.settings;
+  G.rule = (G.settings && G.settings.rule === 'oni') ? 'oni' : 'hide';
   if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
     clearClones();
     buildMap(s.map);
@@ -4309,6 +4728,7 @@ net.on('clone', function (p) {
   spawnClone(p.cid, p.owner, p.x, p.y, p.z, p.r, p.p);
 });
 net.on('cloneHit', function (p) { removeClone(p.cid); });
+net.on('ride', function (p) { setRideOn(!!p.on); });
 net.on('whistle', function (p) {
   if (p.id === net.id) return;
   const sp = spatial(p.x, p.z);
@@ -4412,6 +4832,7 @@ function leaveToTitle() {
   _lastPhase = null;
   net.leave();
   G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
+  G.rideOn = false; me.ride = null;
   _lastRole = null; _lastCaught = 0;
   show('scTitle');
   refreshNetState();
@@ -4425,12 +4846,18 @@ function refreshNetState() {
 $('btnSolo').onclick = function () {
   audio();
   const mi = +$('soloMap').value || 0;
+  G.rule = $('soloRule').value === 'oni' ? 'oni' : 'hide';
+  G.settings.rule = G.rule;
   if (mi !== G.map) buildMap(mi);
   G.mode = 'solo'; G.phase = 'solo';
+  G.rideOn = oniRule() && hasRides();
   net.players.set(net.id, { id: net.id, name: 'you', joinedAt: 0 });
   enterGame();
   paint.show(); placeCrosshair();
-  toast('歩きまわって、背景をタップ→「全身をこの色で塗る」で擬態できます', 5000);
+  toast(oniRule()
+    ? '隠れ鬼の練習：重力とジャンプ（Space／⤒）で動きます。走るはありません'
+    : '歩きまわって、背景をタップ→「全身をこの色で塗る」で擬態できます', 5000);
+  if (hasRides()) toast('🎢 T キー／🎢ボタンでアトラクションが動きます。乗り場で E／🎟️ でのれます', 6500);
 };
 $('btnCreate').onclick = function () { audio(); startOnline(randomCode()); };
 $('btnJoin').onclick = function () {
@@ -4458,7 +4885,8 @@ function startOnline(code) {
 }
 $('btnStart').onclick = function () {
   if (!net.isHost) return;
-  G.settings = { seekers: +$('setSeekers').value, prep: +$('setPrep').value, hunt: +$('setHunt').value, map: +$('setMap').value || 0 };
+  G.settings = { seekers: +$('setSeekers').value, prep: +$('setPrep').value,
+    hunt: +$('setHunt').value, map: +$('setMap').value || 0, rule: $('setRule').value };
   if (hostStart()) { enterGame(); applyState(); }
 };
 $('btnLobbyLeave').onclick = leaveToTitle;
@@ -4507,7 +4935,9 @@ let prev = performance.now();
 
 function step(dt) {
   step._n = (step._n || 0);
-  G.view = paint.open ? 1 : (myRole() === 'seeker' ? 0 : 1);   /* 鬼は一人称 */
+  /* 鬼は一人称。コースターに乗っているあいだも一人称（車内だと三人称のカメラが埋まる） */
+  G.view = paint.open ? 1 : ((myRole() === 'seeker' || rideYawLocked()) ? 0 : 1);
+  stepRides(dt);                       /* 座席の位置を先に決めてから、それに乗る */
   /* --- キーボード移動 --- */
   if (!input.stick) {
     let x = 0, y = 0;
@@ -4526,6 +4956,10 @@ function step(dt) {
   } else if (paint.open) {
     paint.az -= input.lookX;
     paint.elev = Math.max(-1.45, Math.min(1.45, paint.elev + input.lookY));
+  } else if (rideYawLocked()) {
+    /* コースターに乗っているあいだは、進む向きを軸にして首を振る */
+    me.rideYaw -= input.lookX;
+    me.pitch = Math.max(-1.4, Math.min(1.4, me.pitch + input.lookY));
   } else {
     me.yaw -= input.lookX;
     me.pitch = Math.max(-1.4, Math.min(1.4, me.pitch + input.lookY));
@@ -4536,18 +4970,27 @@ function step(dt) {
   const ghost = false;
   const pose = POSES[me.pose];
   const active = !paint.open && !G.free && !frozen && G.phase !== 'result';   /* 答え合わせ中も動ける */
+  const riding = !!me.ride;
+  const oni = oniRule();
 
-  /* Shift = 走る／張り付き解除、Space = 上がる、Ctrl = 下がる */
-  const dashing = active && (keys.has('ShiftLeft') || keys.has('ShiftRight') || input.dash);
-  const wantUp = active && (input.up || (!paint.open && keys.has('Space')));
-  const wantDown = active && (input.down || keys.has('ControlLeft') || keys.has('ControlRight'));
+  /* Space = 上がる（隠れ鬼はジャンプ）、Ctrl = 下がる、Shift = 張り付きを解除
+     ※「走る」は廃止した */
+  const release = active && (keys.has('ShiftLeft') || keys.has('ShiftRight'));
+  const upHeld = active && !riding && (input.up || (!paint.open && keys.has('Space')));
+  const wantUp = upHeld && !oni;
+  const wantDown = active && !riding && !oni &&
+    (input.down || keys.has('ControlLeft') || keys.has('ControlRight'));
+  /* ジャンプは押した瞬間だけ（押しっぱなしで飛びつづけないように） */
+  const wantJump = oni && upHeld && !me.jumpHeld;
+  me.jumpHeld = upHeld;
 
   /* --- 水平移動（目標速度へなめらかに近づける） --- */
   let moving = false, mvx = 0, mvz = 0;
   let tvx = 0, tvz = 0;
-  if (active) {
+  if (active && !riding) {
+    /* 隠れ鬼は追いかけっこなので、みんな少しはやい */
     const sp = ghost ? 8.0
-      : pose.speed * (dashing ? 1.7 : 1) * (myRole() === 'seeker' ? 1.1 : 1);
+      : pose.speed * (oni ? 1.35 : 1) * (myRole() === 'seeker' ? 1.1 : 1);
     const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
     const wx = input.my * fx - input.mx * fz;      /* D=右, A=左 */
     const wz = input.my * fz + input.mx * fx;
@@ -4577,7 +5020,7 @@ function step(dt) {
 
   /* --- フリーカメラ：自分はその場、カメラだけ飛ぶ --- */
   if (G.free && !paint.open) {
-    const fast = (keys.has('ShiftLeft') || keys.has('ShiftRight') || input.dash) ? 2.6 : 1;
+    const fast = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 2.6 : 1;
     const sp = 6.0 * dt * fast;
     const cp = Math.cos(me.fpitch);
     const fx = Math.sin(me.fyaw) * cp, fz = Math.cos(me.fyaw) * cp;
@@ -4595,7 +5038,7 @@ function step(dt) {
 
   /* --- ペイント中：自分は動かさず、カメラだけ自由に飛ばす --- */
   if (paint.open) {
-    const fast = (keys.has('ShiftLeft') || keys.has('ShiftRight') || input.dash) ? 2.4 : 1;
+    const fast = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 2.4 : 1;
     const sp = 3.4 * dt * fast;
     const cax = paint.az + Math.PI;
     const cfx = Math.sin(cax), cfz = Math.cos(cax);
@@ -4609,14 +5052,43 @@ function step(dt) {
   }
 
   /* --- 上下（浮遊・壁への張り付き）と、めり込み量 --- */
-  if (ghost) {
+  if (riding) {
+    /* アトラクションに乗っているあいだは、座席にぴったりついていく */
+    const st = me.ride.ride.seats[me.ride.i];
+    me.pos.copy(st.pos);
+    me.vel.set(0, 0, 0);
+    me.onGround = true; me.stuck = false; me.exposure = 1;
+    if (st.yaw !== null && st.yaw !== undefined) me.yaw = st.yaw + me.rideYaw;
+  } else if (ghost) {
     me.pos.x += mvx; me.pos.z += mvz;
     me.pos.y = 1.4; me.vel.y = 0; me.onGround = true;
     me.exposure = 1; me.stuck = false;
+  } else if (oni) {
+    /* 隠れ鬼：重力があってジャンプする。浮けないし張り付けない */
+    if (wantJump && me.onGround) me.vel.y = JUMP_V;
+    me.vel.y -= GRAVITY * dt;
+    me.pos.y += me.vel.y * dt;
+    const ceilO = G.ceilY || CEIL_Y;
+    if (me.pos.y > ceilO) { me.pos.y = ceilO; me.vel.y = Math.min(0, me.vel.y); }
+
+    const nO = Math.max(1, Math.ceil(Math.hypot(mvx, mvz) / SUBSTEP));
+    let colO = null;
+    for (let i = 0; i < nO; i++) {
+      me.pos.x += mvx / nO;
+      me.pos.z += mvz / nO;
+      colO = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale);
+    }
+    me.exposure = colO.exposure;
+    me.stuck = false;
+
+    const gO = groundHeightAt(world.solids, me.pos.x, me.pos.z, me.pos.y,
+      Math.max(0, -me.vel.y * dt), PLAYER_R * me.scale * 0.8);
+    if (me.pos.y <= gO) { me.pos.y = gO; me.vel.y = 0; me.onGround = true; }
+    else me.onGround = false;
   } else {
     if (wantUp) me.vel.y = Math.min(me.vel.y + 30 * dt, 3.1);
     else if (wantDown) me.vel.y = Math.max(me.vel.y - 30 * dt, -3.4);
-    else if (me.stuck && !dashing) me.vel.y = 0;      /* 何かに触れていれば、その場で静止できる */
+    else if (me.stuck && !release) me.vel.y = 0;      /* 何かに触れていれば、その場で静止できる */
     else me.vel.y -= GRAVITY * dt;
 
     me.pos.y += me.vel.y * dt;
@@ -4632,7 +5104,7 @@ function step(dt) {
       col = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale);
     }
     me.exposure = col.exposure;
-    me.stuck = col.touching && !dashing;
+    me.stuck = col.touching && !release;
 
     const g = groundHeightAt(world.solids, me.pos.x, me.pos.z, me.pos.y,
       Math.max(0, -me.vel.y * dt), PLAYER_R * me.scale * 0.8);
@@ -4652,7 +5124,7 @@ function step(dt) {
   updateWaitRoom();
   updateEmbedWarn();
   /* 空中で何かに張りついているときだけ知らせる（地面に立っているときは出さない） */
-  $('clingTag').className = (!ghost && me.stuck && !me.onGround && !paint.open && !G.free) ? '' : 'hidden';
+  $('clingTag').className = (!ghost && !oni && !riding && me.stuck && !me.onGround && !paint.open && !G.free) ? '' : 'hidden';
 
   /* ペイント中に Space 長押し＝3D スポイト */
   if (paint.open && keys.has('Space') && performance.now() - (doPick._t || 0) > 130) {
@@ -4810,7 +5282,7 @@ function updateDiag() {
     'touch=' + isTouch + ' mode=' + G.mode + ' phase=' + G.phase + '\n' +
     'paint=' + paint.open + ' free=' + G.free + ' view=' + G.view + '\n' +
     'stick=' + input.stick + ' mx=' + input.mx.toFixed(2) + ' my=' + input.my.toFixed(2) + '\n' +
-    'up=' + input.up + ' down=' + input.down + ' dash=' + input.dash + '\n' +
+    'up=' + input.up + ' down=' + input.down + ' ride=' + (me.ride ? 1 : 0) + '\n' +
     'zone=' + Math.round(z.width) + 'x' + Math.round(z.height) +
     ' touchUI=' + !$('touch').classList.contains('hidden') + '\n' +
     'last=' + lastPtr;
