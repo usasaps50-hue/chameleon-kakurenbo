@@ -137,6 +137,11 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   top:max(52px,calc(env(safe-area-inset-top) + 46px));
   background:#123a2aee;border:1px solid #3f9a5e;color:#a8f0c4;font-size:12px;font-weight:700;
   padding:7px 14px;border-radius:12px;max-width:92vw;text-align:center}
+#useTag{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 152px);
+  background:#123a2aee;border:1px solid #4fd07a;color:#b6f5cf;font-size:12.5px;font-weight:700;
+  padding:8px 15px;border-radius:12px;max-width:92vw;text-align:center}
+@media (min-width:761px){ #useTag{bottom:70px} }
 #lockTag{position:absolute;left:50%;transform:translateX(-50%);
   top:max(52px,calc(env(safe-area-inset-top) + 46px));
   background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0;font-size:12px;font-weight:700;
@@ -220,7 +225,6 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <div id="posePick" class="hidden"></div>
     <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
-    <button id="btnRide"  class="rb hidden">🎢<i>うごかす</i></button>
     <button id="btnBoard" class="rb hidden">🎟️<i>のる</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
     <button id="btnLeave" class="rb small">✕</button>
@@ -232,6 +236,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnDown" class="mv">▼<i>さがる</i></button>
     <button id="btnTag">みつけた!</button>
   </div>
+  <div id="useTag" class="hidden"></div>
   <div id="lockTag" class="hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
   <div id="clingTag" class="hidden">🧲 くっついています — このまま止まれます（Shift／▼で はなれる）</div>
   <div id="embedWarn" class="hidden"></div>
@@ -2905,9 +2910,94 @@ function buildMap(idx) {
   if (typeof me !== 'undefined') me.ride = null;
   G.ceilY = MAPS[idx].ceil || 6;
   G.map = idx;
-  if (!hasRides()) G.rideOn = false;
+  buildRideSwitches();     /* アトラクションごとのスイッチを、マップのどこかに置く */
+  G.rideOn = rides.map(function () { return 0; });
   stepRides(0);            /* 座席と当たり判定を、動かす前に一度そろえておく */
   return world;
+}
+
+/* =====================================================================
+   アトラクションのスイッチ（マップのどこかにランダムで立つ）
+   ボタンは1つの乗り物につき1本。押すとその乗り物だけが動きだす。
+===================================================================== */
+function switchSignTex(text, bg) {
+  return canvasTex(256, 72, function (g, w, h) {
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffffff'; g.fillRect(4, 4, w - 8, h - 8);
+    g.fillStyle = '#2a2f38';
+    g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, w / 2, h / 2);
+  });
+}
+function buildRideSwitches() {
+  if (!hasRides()) return;
+  const cols = ['#ff5a7a', '#ffd23f', '#4fd07a', '#4fb8ff'];
+  for (let i = 0; i < rides.length; i++) {
+    const r = rides[i], col = cols[i % cols.length];
+    const g = new THREE.Group();
+    group.add(g);
+    function add(geo, m, x, y, z) {
+      const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o;
+    }
+    add(new THREE.CylinderGeometry(0.62, 0.7, 0.16, 14), mat('#3a3f46'), 0, 0.08, 0);
+    add(new THREE.CylinderGeometry(0.12, 0.12, 1.05, 10), mat('#cfd5db'), 0, 0.68, 0);
+    add(new THREE.BoxGeometry(0.8, 0.55, 0.4), mat(col), 0, 1.35, 0);
+    /* 押しボタン。とまっているとき赤、動いているとき緑 */
+    const btn = add(new THREE.CylinderGeometry(0.19, 0.19, 0.14, 14),
+      new THREE.MeshBasicMaterial({ color: 0xff4a5a }), 0, 1.42, 0.24);
+    btn.rotation.x = Math.PI / 2;
+    /* 遠くからでも見つかるように、高い目じるしを立てる */
+    add(new THREE.CylinderGeometry(0.07, 0.07, 5.4, 8), mat(col), 0, 2.7, 0);
+    const lamp = add(new THREE.SphereGeometry(0.42, 12, 9),
+      new THREE.MeshBasicMaterial({ color: 0xff4a5a }), 0, 5.7, 0);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.65),
+      new THREE.MeshBasicMaterial({ map: switchSignTex(r.name, col), side: THREE.DoubleSide }));
+    sign.position.set(0, 2.15, 0); g.add(sign);
+    const sign2 = sign.clone(); sign2.rotation.y = Math.PI / 2; g.add(sign2);
+    r.sw = { g: g, pos: new THREE.Vector3(), btn: btn, lamp: lamp,
+      sol: addSolid(0, 0, 1.1, 1.1, 1.62, 0, 9999) };
+  }
+  placeRideSwitches(G.rideSeed || 1);
+}
+/** その場所に立てられるか（平らな地面で、まわりに物がないか） */
+function switchSpotOK(x, z) {
+  if (groundHeightAt(solids, x, z, 0, 0, 1.0) > 0.05) return false;
+  for (let i = 0; i < solids.length; i++) {
+    const s = solids[i];
+    if (s.top < 0.35 || s.y0 > 1.7) continue;
+    if (x > s.x0 - 1.3 && x < s.x1 + 1.3 && z > s.z0 - 1.3 && z < s.z1 + 1.3) return false;
+  }
+  return true;
+}
+/** 毎回ちがう場所へ。オンラインは同じ seed をみんなで使うので、全員おなじ位置になる */
+function placeRideSwitches(seed) {
+  if (!hasRides()) return;
+  const rnd = makeRng((seed | 0) || 1);
+  for (let i = 0; i < rides.length; i++) rides[i].sw.sol.y0 = 9999;   /* いったん判定を消す */
+  const b = ARENA_BOUNDS, m = 5, put = [];
+  for (let i = 0; i < rides.length; i++) {
+    const sw = rides[i].sw;
+    let p = null;
+    for (let t = 0; t < 600 && !p; t++) {
+      const x = b.x0 + m + rnd() * (b.x1 - b.x0 - m * 2);
+      const z = b.z0 + m + rnd() * (b.z1 - b.z0 - m * 2);
+      if (!switchSpotOK(x, z)) continue;
+      let far = true;
+      for (let k = 0; k < put.length; k++) {
+        if (Math.hypot(put[k].x - x, put[k].z - z) < 14) { far = false; break; }
+      }
+      if (far) p = { x: x, z: z };
+    }
+    /* どうしても見つからないときは、その乗り物の乗り場のそば */
+    if (!p) p = { x: rides[i].boardZone.x + 3.5, z: rides[i].boardZone.z + 3.5 };
+    put.push(p);
+    sw.g.position.set(p.x, 0, p.z);
+    sw.g.rotation.y = rnd() * Math.PI * 2;
+    sw.pos.set(p.x, 0, p.z);
+    sw.sol.x0 = p.x - 0.55; sw.sol.x1 = p.x + 0.55;
+    sw.sol.z0 = p.z - 0.55; sw.sol.z1 = p.z + 0.55;
+    sw.sol.y0 = 0; sw.sol.top = 1.62;
+  }
 }
 
 /* =====================================================================
@@ -3543,7 +3633,8 @@ const G = {
   ceilY: 6,           /* 浮ける高さ */
   caughtAt: {},       /* つかまった場所 */
   free: false,        /* フリーカメラ（自分は動かない） */
-  rideOn: false,      /* 遊園地のアトラクションが動いているか */
+  rideOn: [],         /* 乗り物ごとに動いているか（0/1 の配列） */
+  rideSeed: 1,        /* スイッチの置き場所のたね。毎回変える */
   soloRole: 'hider'   /* 練習モードでの役 */
 };
 /* 隠れ鬼のときは重力があってジャンプする（浮けない・張り付けない） */
@@ -3702,8 +3793,7 @@ addEventListener('keydown', function (e) {
     if (n >= 0 && n < POSES.length) { setPose(n); showPosePick(false); }
   }
   else if (e.code === 'KeyC') putClone();
-  else if (e.code === 'KeyE') toggleBoard();
-  else if (e.code === 'KeyT') toggleRides();
+  else if (e.code === 'KeyE') useAction();
   else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleMouseLock();
   else if (e.code === 'Digit5') toggleFree();
   else if (e.code === 'Escape' && paint.open) togglePaint();
@@ -3778,13 +3868,19 @@ canvasEl.addEventListener('wheel', function (e) {
   const pinch = new Map();
   let pinchD = 0;
 
+  /* 指がもう離れていると setPointerCapture は InvalidStateError を投げる。
+     ここで止まると、そのあとの処理が丸ごと飛んで操作が効かなくなるので必ず包む */
+  function capture(pid) {
+    try { if (canvasEl.setPointerCapture) canvasEl.setPointerCapture(pid); } catch (err) { }
+  }
+
   canvasEl.addEventListener('pointerdown', function (e) {
     if (G.mode === 'menu') return;
     if (input.stick && e.pointerType === 'touch' && e.clientX < innerWidth * 0.48) return;
     if (e.button === 2 && paint.open) {          /* 右ドラッグ＝カメラを上下に振る */
       e.preventDefault();
       panId = e.pointerId; panY0 = e.clientY;
-      canvasEl.setPointerCapture(e.pointerId);
+      capture(e.pointerId);
       return;
     }
     if (paint.open && e.pointerType === 'touch') {
@@ -3798,7 +3894,7 @@ canvasEl.addEventListener('wheel', function (e) {
     }
     if (id !== null) return;
     id = e.pointerId; lx = e.clientX; ly = e.clientY; moved = 0; t0 = performance.now();
-    if (canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+    capture(e.pointerId);
     /* ペイント中に自分の体をなぞったら、そこに直接ぬる */
     painting = (paint.open && !e.altKey) ? paintAtScreen(e.clientX, e.clientY, true) : false;
   });
@@ -3951,8 +4047,7 @@ function holdBtn(id, set) {
 }
 holdBtn('btnUp', function (v) { input.up = v; });
 holdBtn('btnDown', function (v) { input.down = v; });
-$('btnRide').onclick = function () { toggleRides(); };
-$('btnBoard').onclick = function () { toggleBoard(); };
+$('btnBoard').onclick = function () { useAction(); };
 $('btnTag').onclick = function () { const c = viewCenter(); onTap(c.x, c.y); };
 $('toolPick').onclick = function () { doPick(); };
 
@@ -4354,7 +4449,7 @@ function putClone() {
 function hasRides() { return !!(rides && rides.length); }
 function stepRides(dt) {
   if (!rides) return;
-  for (let i = 0; i < rides.length; i++) rides[i].step(dt, G.rideOn);
+  for (let i = 0; i < rides.length; i++) rides[i].step(dt, !!(G.rideOn && G.rideOn[i]));
 }
 function rideYawLocked() {
   if (!me.ride) return false;
@@ -4390,40 +4485,81 @@ function toggleBoard() {
   if (me.ride) { getOff(); return; }
   if (paint.open || G.free) { toast('ペイント／フリーカメラ中は のれません'); return; }
   const b = nearestSeat();
-  if (!b) { toast('のれるアトラクションが近くにありません'); return; }
+  if (!b) { toast('近くに スイッチ も のりば もありません'); return; }
   me.ride = b; me.rideYaw = 0; me.vel.set(0, 0, 0);
   me.pos.copy(b.ride.seats[b.i].pos);
   toast(b.ride.name + ' の ' + b.ride.seats[b.i].name + ' に のりました（もう一度おすと おりる）');
   updateRideButtons();
 }
-function setRideOn(on, quiet) {
-  const was = G.rideOn;
-  G.rideOn = !!on;
-  if (!quiet && was !== G.rideOn) {
-    toast(G.rideOn ? '🎢 アトラクションが動きだしました！' : '🎢 アトラクションを止めました');
-    if (G.rideOn) playWhistle(0, 0.7);
+/** 乗り物 i の動作を切りかえる。スイッチのランプの色もここで変える */
+function setRideOn(i, on, quiet) {
+  if (!hasRides() || !rides[i]) return;
+  if (!Array.isArray(G.rideOn)) G.rideOn = rides.map(function () { return 0; });
+  const was = !!G.rideOn[i];
+  G.rideOn[i] = on ? 1 : 0;
+  const sw = rides[i].sw;
+  if (sw) {
+    const c = on ? 0x4ff07a : 0xff4a5a;
+    sw.btn.material.color.setHex(c);
+    sw.lamp.material.color.setHex(c);
+  }
+  if (!quiet && was !== !!on) {
+    toast(on ? '🎢 ' + rides[i].name + ' が動きだしました！' : '🎢 ' + rides[i].name + ' を止めました');
+    playWhistle(0, 0.6);
   }
   updateRideButtons();
+}
+function syncRideOn(arr) {
+  if (!hasRides() || !arr) return;
+  for (let i = 0; i < rides.length; i++) setRideOn(i, !!arr[i], true);
+}
+/** いちばん近いスイッチ（届く範囲になければ -1） */
+function nearestSwitch() {
+  if (!hasRides()) return -1;
+  let best = -1, bd = 3.0;
+  for (let i = 0; i < rides.length; i++) {
+    const sw = rides[i].sw;
+    if (!sw) continue;
+    const d = Math.hypot(me.pos.x - sw.pos.x, me.pos.z - sw.pos.z);
+    if (d < bd && me.pos.y < 3.2 && d < bd) { best = i; bd = d; }
+  }
+  return best;
+}
+function pressSwitch(i) {
+  setRideOn(i, !(G.rideOn && G.rideOn[i]));
+  if (G.mode === 'online' && net.channel) net.send('ride', { i: i, on: G.rideOn[i] });
 }
 /** アトラクションと上下ボタンの見た目。乗る／降りるのたびに呼ぶ */
 function updateRideButtons() {
   const rideMap = hasRides() && !me.inWait;
-  $('btnRide').classList.toggle('hidden', !rideMap);
-  $('btnRide').classList.toggle('on', G.rideOn);
-  $('btnRide').querySelector('i').textContent = G.rideOn ? 'とめる' : 'うごかす';
   $('btnBoard').classList.toggle('hidden', !rideMap);
-  $('btnBoard').firstChild.nodeValue = me.ride ? '🚪' : '🎟️';
-  $('btnBoard').querySelector('i').textContent = me.ride ? 'おりる' : 'のる';
+  const si = rideMap ? nearestSwitch() : -1;
+  const label = me.ride ? ['🚪', 'おりる']
+    : si >= 0 ? ['🎢', (G.rideOn && G.rideOn[si]) ? 'とめる' : 'うごかす']
+      : ['🎟️', 'のる'];
+  $('btnBoard').firstChild.nodeValue = label[0];
+  $('btnBoard').querySelector('i').textContent = label[1];
+  $('btnBoard').classList.toggle('on', si >= 0);
+  const ut = $('useTag');
+  if (si >= 0 && !me.ride) {
+    ut.className = '';
+    ut.textContent = '🎢 ' + rides[si].name + ' のスイッチ — ' +
+      (isTouch ? '🎢ボタン' : 'E キー') + 'で' +
+      ((G.rideOn && G.rideOn[si]) ? 'とめる' : 'うごかす');
+  } else ut.className = 'hidden';
   /* 隠れ鬼は重力＋ジャンプなので、上下ボタンの意味が変わる */
   const oni = oniRule();
   $('btnUp').firstChild.nodeValue = oni ? '⤒' : '▲';
   $('btnUp').querySelector('i').textContent = oni ? 'ジャンプ' : 'うく';
   $('btnDown').classList.toggle('hidden', oni);
 }
-function toggleRides() {
-  if (!hasRides()) { toast('このマップにアトラクションはありません'); return; }
-  setRideOn(!G.rideOn);
-  if (G.mode === 'online' && net.channel) net.send('ride', { on: G.rideOn ? 1 : 0 });
+/** ボタンや E キーの「つかう」。近いものから順に、スイッチ→のりば */
+function useAction() {
+  if (me.ride) { getOff(); return; }
+  if (paint.open || G.free) { toast('ペイント／フリーカメラ中は つかえません'); return; }
+  const si = nearestSwitch();
+  if (si >= 0) { pressSwitch(si); return; }
+  toggleBoard();
 }
 
 /* =====================================================================
@@ -4442,7 +4578,8 @@ function aliveHiders() {
 function hostBroadcast() {
   net.send('state', {
     phase: G.phase, remain: G.remain, roles: G.roles, caught: G.caught, caughtAt: G.caughtAt,
-    winner: G.winner, settings: G.settings, map: G.map
+    winner: G.winner, settings: G.settings, map: G.map,
+    rideSeed: G.rideSeed, rideOn: G.rideOn
   });
 }
 function hostStart() {
@@ -4462,7 +4599,11 @@ function hostStart() {
   }
   /* 隠れ鬼は 10 秒で鬼が来る。アトラクションも最初から動かしておく */
   G.phase = 'prep'; G.remain = oniRule() ? ONI_PREP : G.settings.prep;
-  G.rideOn = oniRule() && hasRides();
+  /* スイッチは毎回ちがう場所に。たねを配って全員おなじ位置にする */
+  G.rideSeed = (Math.random() * 2147483647) | 0 || 1;
+  placeRideSwitches(G.rideSeed);
+  G.rideOn = hasRides() ? rides.map(function () { return 0; }) : [];
+  syncRideOn(G.rideOn);
   hostBroadcast();
   ensureHostTimer();
   return true;
@@ -4704,6 +4845,8 @@ net.on('state', function (s) {
   G.caught = s.caught || {}; G.caughtAt = s.caughtAt || {};
   G.winner = s.winner; G.settings = s.settings || G.settings;
   G.rule = (G.settings && G.settings.rule === 'oni') ? 'oni' : 'hide';
+  if (s.rideSeed && s.rideSeed !== G.rideSeed) { G.rideSeed = s.rideSeed; placeRideSwitches(G.rideSeed); }
+  if (s.rideOn) syncRideOn(s.rideOn);
   if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
     clearClones();
     buildMap(s.map);
@@ -4728,7 +4871,7 @@ net.on('clone', function (p) {
   spawnClone(p.cid, p.owner, p.x, p.y, p.z, p.r, p.p);
 });
 net.on('cloneHit', function (p) { removeClone(p.cid); });
-net.on('ride', function (p) { setRideOn(!!p.on); });
+net.on('ride', function (p) { setRideOn(p.i | 0, !!p.on); });
 net.on('whistle', function (p) {
   if (p.id === net.id) return;
   const sp = spatial(p.x, p.z);
@@ -4832,7 +4975,7 @@ function leaveToTitle() {
   _lastPhase = null;
   net.leave();
   G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
-  G.rideOn = false; me.ride = null;
+  me.ride = null;
   _lastRole = null; _lastCaught = 0;
   show('scTitle');
   refreshNetState();
@@ -4850,14 +4993,16 @@ $('btnSolo').onclick = function () {
   G.settings.rule = G.rule;
   if (mi !== G.map) buildMap(mi);
   G.mode = 'solo'; G.phase = 'solo';
-  G.rideOn = oniRule() && hasRides();
+  G.rideSeed = (Math.random() * 2147483647) | 0 || 1;
+  placeRideSwitches(G.rideSeed);
+  if (hasRides()) { G.rideOn = rides.map(function () { return 0; }); syncRideOn(G.rideOn); }
   net.players.set(net.id, { id: net.id, name: 'you', joinedAt: 0 });
   enterGame();
   paint.show(); placeCrosshair();
   toast(oniRule()
     ? '隠れ鬼の練習：重力とジャンプ（Space／⤒）で動きます。走るはありません'
     : '歩きまわって、背景をタップ→「全身をこの色で塗る」で擬態できます', 5000);
-  if (hasRides()) toast('🎢 T キー／🎢ボタンでアトラクションが動きます。乗り場で E／🎟️ でのれます', 6500);
+  if (hasRides()) toast('🎢 アトラクションのスイッチが3つ、マップのどこかに立っています（高い目じるしをさがそう）', 7000);
 };
 $('btnCreate').onclick = function () { audio(); startOnline(randomCode()); };
 $('btnJoin').onclick = function () {
@@ -5123,6 +5268,9 @@ function step(dt) {
   }
   updateWaitRoom();
   updateEmbedWarn();
+  /* スイッチのそばに来た／離れたときだけ、ボタンの見た目を作りなおす */
+  const swNow = (hasRides() && !paint.open && !G.free && !me.ride) ? nearestSwitch() : -1;
+  if (swNow !== step._sw) { step._sw = swNow; updateRideButtons(); }
   /* 空中で何かに張りついているときだけ知らせる（地面に立っているときは出さない） */
   $('clingTag').className = (!ghost && !oni && !riding && me.stuck && !me.onGround && !paint.open && !G.free) ? '' : 'hidden';
 
