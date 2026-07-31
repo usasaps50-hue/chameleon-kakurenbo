@@ -435,8 +435,7 @@ const isWide  = function () { return innerWidth > 760; };
 const ARENA = 72, HALF = ARENA / 2, WALL_H = 9;
 const PLAYER_R = 0.34;
 const EMBED_DEPTH = 0.26;
-const EMBED_SAFE = 0.07;
-/* 1歩の刻み。EMBED_SAFE より大きいと、押し戻す前に薄い壁を飛びこえてしまう */
+/* 1歩の刻み。沈める量はここぶんの余白を必ず残すので、これより大きくすると薄い壁を飛びこえる */
 const SUBSTEP = 0.04;
 /* このすきま以内なら「くっついた」とみなして、空中でもその高さで止まれる */
 const CLING_GAP = 0.28;
@@ -3081,11 +3080,11 @@ function insideWall(x, y, z) {
   return false;
 }
 
-function resolveCollision(solids, pos, feetY, R0) {
+function resolveCollision(solids, pos, feetY, R0, bh) {
   /* 1) ふつうの半径で「どの面から入ってきたか」を決め、その面から少しだけ沈める。
         反対側へは絶対に抜けられないので、薄い壁でも貫通しない。 */
   const R = R0 || PLAYER_R;
-  const headY = feetY + 2.2;                 /* 頭の高さ。これより上にある物はくぐれる */
+  const headY = feetY + (bh || 2.2);         /* 頭の高さ。これより上にある物はくぐれる */
   for (let i = 0; i < solids.length; i++) {
     const s = solids[i];
     if (s.top <= feetY + 0.25 || s.y0 > headY) continue;
@@ -3094,9 +3093,11 @@ function resolveCollision(solids, pos, feetY, R0) {
     const dl = pos.x - (s.x0 - R), dr = (s.x1 + R) - pos.x;
     const db = pos.z - (s.z0 - R), df = (s.z1 + R) - pos.z;
     const m = Math.min(dl, dr, db, df);
-    /* 反対側へ抜けないよう、中心面から SAFE だけ手前で止める */
-    const ax = Math.min(EMBED_DEPTH, Math.max(0, (s.x1 - s.x0) / 2 - EMBED_SAFE));
-    const az = Math.min(EMBED_DEPTH, Math.max(0, (s.z1 - s.z0) / 2 - EMBED_SAFE));
+    /* 沈める量は「厚みの8割」まで。ただし反対側へ抜けないよう、
+       1サブステップぶん(SUBSTEP)の余白は必ず残す */
+    const hx = (s.x1 - s.x0) / 2, hz = (s.z1 - s.z0) / 2;
+    const ax = Math.min(EMBED_DEPTH, hx * 0.8, Math.max(0, hx - SUBSTEP));
+    const az = Math.min(EMBED_DEPTH, hz * 0.8, Math.max(0, hz - SUBSTEP));
     if (m === dl) pos.x = Math.min(pos.x, s.x0 + ax);
     else if (m === dr) pos.x = Math.max(pos.x, s.x1 - ax);
     else if (m === db) pos.z = Math.min(pos.z, s.z0 + az);
@@ -3152,22 +3153,30 @@ const w2px = function (wx) { return (wx - UVX0) / UVW * SIDE_W; };
 const w2py = function (wy) { return (1 - wy / BODY_H) * SKIN_H; };
 
 /* ポーズ：パーツごとに位置と大きさを変えてシルエットを作る */
+/* eye=目の高さ / camY=三人称の注視点 / h=当たり判定の背丈（低いすきまに入れるかを決める）。
+   h は「頭の球の中心(eye) + 半径0.215」ぶん。寝そべりだけは体を倒すので実測値を入れてある */
 const POSES = [
-  { name:'立つ', icon:'🧍', eye:1.50, speed:4.2, camY:0.95 },
-  { name:'しゃがむ', icon:'🧎', eye:0.98, speed:2.0, camY:0.62, tr:{
+  { name:'立つ', icon:'🧍', eye:1.50, speed:4.2, camY:0.95, h:1.74 },
+  { name:'しゃがむ', icon:'🧎', eye:0.98, speed:2.0, camY:0.62, h:1.22, tr:{
       head:{ y:1.02 }, torso:{ y:0.60, s:[1.09,0.92,1.09] },
       armL:{ y:0.66, s:[1,0.85,1] }, armR:{ y:0.66, s:[1,0.85,1] },
       legL:{ y:0.14, s:[1.06,0.55,1.06] }, legR:{ y:0.14, s:[1.06,0.55,1.06] } } },
-  { name:'丸まる', icon:'🥚', eye:0.64, speed:1.0, camY:0.42, tr:{
+  { name:'丸まる', icon:'🥚', eye:0.64, speed:1.0, camY:0.42, h:0.88, tr:{
       head:{ y:0.74, s:[0.92,0.92,0.92] }, torso:{ y:0.42, s:[1.38,1.08,1.38] },
       armL:{ x:-0.235, y:0.40, s:[0.9,0.55,0.9] }, armR:{ x:0.235, y:0.40, s:[0.9,0.55,0.9] },
       legL:{ x:-0.10, y:0.12, s:[0.95,0.5,0.95] }, legR:{ x:0.10, y:0.12, s:[0.95,0.5,0.95] } } },
-  { name:'のびる', icon:'📏', eye:2.02, speed:1.7, camY:1.15, tr:{
+  { name:'のびる', icon:'📏', eye:2.02, speed:1.7, camY:1.15, h:2.26, tr:{
       head:{ y:2.02, s:[0.9,0.95,0.9] }, torso:{ y:1.16, s:[0.84,1.55,0.84] },
       armL:{ x:-0.272, y:1.30, s:[0.9,1.5,0.9] }, armR:{ x:0.272, y:1.30, s:[0.9,1.5,0.9] },
       legL:{ x:-0.11, y:0.30, s:[0.9,1.4,0.9] }, legR:{ x:0.11, y:0.30, s:[0.9,1.4,0.9] } } },
-  { name:'寝そべる', icon:'🛌', eye:0.38, speed:0.8, camY:0.36, lie:true }
+  { name:'寝そべる', icon:'🛌', eye:0.38, speed:0.8, camY:0.36, h:0.62, lie:true }
 ];
+
+/** いまの自分の体の高さ（ポーズ＋体格ぶん）。当たり判定の「頭の高さ」に使う */
+function bodyH() {
+  const po = POSES[me.pose] || POSES[0];
+  return (po.h || (po.eye + 0.24)) * (me.scale || 1);
+}
 
 const _one = [1, 1, 1];
 const geoCache = {};
@@ -5259,6 +5268,11 @@ function step(dt) {
     paint.pan.y = Math.max(-1.5, Math.min(4, paint.pan.y));
   }
 
+  /* 当たり判定の背丈。しゃがむ・丸まると低くなって、机の下や低いすきまに入れる。
+     2.2 で頭打ちにしてあるのは「のびる」で今まで通れた所が通れなくならないようにするため
+     （縮む方向にしか変わらないので、できることが減らない） */
+  const hitH = Math.min(2.2, bodyH());
+
   /* --- 上下（浮遊・壁への張り付き）と、めり込み量 --- */
   if (riding) {
     /* アトラクションに乗っているあいだは、座席にぴったりついていく */
@@ -5284,7 +5298,7 @@ function step(dt) {
     for (let i = 0; i < nO; i++) {
       me.pos.x += mvx / nO;
       me.pos.z += mvz / nO;
-      colO = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale);
+      colO = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale, hitH);
     }
     me.exposure = colO.exposure;
     me.stuck = false;
@@ -5309,7 +5323,7 @@ function step(dt) {
     for (let i = 0; i < n; i++) {
       me.pos.x += mvx / n;
       me.pos.z += mvz / n;
-      col = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale);
+      col = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale, hitH);
     }
     me.exposure = col.exposure;
     me.stuck = col.touching && !release;
