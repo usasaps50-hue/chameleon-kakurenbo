@@ -7,14 +7,37 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>カメレオンかくれんぼ</title>
 <style>
+/* 色はここにまとめてある。数字を直接書かないこと（あとで色を変えるとき総当たりになる） */
+:root{
+  --bg:#0e1015;          /* いちばん暗い背景 */
+  --sunk:#0f131b;        /* 入力欄など、沈んで見える面 */
+  --panel:#161a23;       /* カードの面 */
+  --panel2:#1b212d;      /* パネルの中のボタン */
+  --hud:#141924e6;       /* HUD のボタン */
+  --hudBox:#0d1017cc;    /* HUD の小さな箱 */
+  --btn:#232a38;         /* ふつうのボタン */
+  --line:#2a3244;        /* 枠線 */
+  --line2:#333c4f;       /* 明るめの枠線 */
+  --text:#eef1f7;
+  --sub:#9aa4bb;         /* 補助テキスト */
+  --dim:#7d879c;         /* さらに薄いテキスト */
+  --green:#7fd48a; --greenBg:#2b5a35; --greenLine:#4c9a5e;
+  --red:#ff9aa2;   --redBg:#3d1f22;   --redLine:#7a343c;
+  --amber:#ffd48a; --amberBg:#3a2a12ee; --amberLine:#c8922e;
+  --blue:#7fb0ff;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0e1015;color:#eef1f7;
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
 canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .hidden{display:none!important}
-button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+/* padding も消しておくこと。既定の左右 6px ぶん、丸ボタンの中身がせまくなる */
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
 input,select{font:inherit}
+/* キーボードで操作したとき、どこにいるか分かるように（既定の枠を消しているので自前で出す） */
+button:focus-visible,select:focus-visible,input:focus-visible{
+  outline:2px solid var(--green);outline-offset:2px}
 
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:#0e1015;z-index:99;
   font-size:15px;letter-spacing:.1em;color:#8d97ad}
@@ -24,48 +47,57 @@ input,select{font:inherit}
 .screen{position:absolute;inset:0;display:grid;place-items:center;padding:20px;
   padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));
   background:radial-gradient(120% 90% at 50% 0%,#1d2740 0%,#0e1015 70%);pointer-events:auto;overflow:auto}
-.card{width:min(430px,100%);background:#161a23;border:1px solid #262c3a;border-radius:20px;
+.card{width:min(430px,100%);background:var(--panel);border:1px solid #262c3a;border-radius:20px;
   padding:22px 20px;box-shadow:0 24px 60px #0009;text-align:center}
 .card h1{margin:2px 0 6px;font-size:30px;line-height:1.15}
-.card h1 span{color:#7fd48a}
+.card h1 span{color:var(--green)}
 .card h2{margin:0 0 8px;font-size:21px}
-.sub{margin:0 0 16px;font-size:13px;color:#9aa4bb;line-height:1.6}
+.sub{margin:0 0 16px;font-size:13px;color:var(--sub);line-height:1.6}
 .tiny{font-size:11px;color:#8892a8;line-height:1.6;margin:10px 0 0}
 .tiny.dim{color:#5c6478}
-.card label{display:block;text-align:left;font-size:12px;color:#9aa4bb;margin:12px 0 5px}
+.card label{display:block;text-align:left;font-size:12px;color:var(--sub);margin:12px 0 5px}
 #scCfg input{width:100%;padding:11px 13px;border-radius:11px;border:1px solid #2c3345;
-  background:#0f131b;color:#eef1f7;font-size:14px}
+  background:var(--sunk);color:var(--text);font-size:14px}
 button.big{display:block;width:100%;padding:14px;margin:9px 0;border-radius:13px;
-  background:#232a38;border:1px solid #333c4f;font-size:16px;font-weight:600;transition:.12s}
+  background:var(--btn);border:1px solid var(--line2);font-size:16px;font-weight:600;transition:.12s}
 button.big:active{transform:scale(.98);background:#2b3446}
+button.big:disabled{opacity:.45;cursor:not-allowed}
 button.primary{background:linear-gradient(180deg,#54c26a,#3da255);border-color:#63d47a;color:#06210d}
-button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underline}
+/* 目立たせたくないけれど、指で押せる大きさは要るボタン */
+button.big.ghost{background:none;border-color:#2a3140;color:var(--blue);font-size:14px;padding:11px}
+button.link{color:var(--blue);font-size:13px;margin-top:12px;text-decoration:underline;padding:8px}
 .row{display:flex;gap:10px;margin-top:16px}.row .big{margin:0}
 .joinrow{display:flex;gap:8px;margin:9px 0}
-.joinrow input{flex:1;padding:14px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;
+.joinrow input{flex:1;padding:14px;border-radius:13px;border:1px solid var(--line2);background:var(--sunk);
   color:#fff;font-size:19px;text-align:center;letter-spacing:.34em;font-weight:700;text-transform:uppercase}
-.joinrow button{padding:0 22px;border-radius:13px;background:#232a38;border:1px solid #333c4f;font-weight:600}
-#roomCode{font-size:42px;font-weight:800;letter-spacing:.22em;color:#7fd48a;margin:6px 0 2px}
+.joinrow button{padding:0 22px;border-radius:13px;background:var(--btn);border:1px solid var(--line2);font-weight:600}
+#roomCode{font-size:42px;font-weight:800;letter-spacing:.22em;color:var(--green);margin:6px 0 2px}
 #playerList,#resultList{display:flex;flex-direction:column;gap:6px;margin:14px 0;max-height:36vh;overflow:auto}
-.pl,.rr{display:flex;align-items:center;gap:9px;background:#0f131b;border:1px solid #242b3a;
+.pl,.rr{display:flex;align-items:center;gap:9px;background:var(--sunk);border:1px solid #242b3a;
   border-radius:11px;padding:9px 12px;font-size:14px;text-align:left}
 .pl .dot{width:10px;height:10px;border-radius:50%;flex:none}
 .pl .host{margin-left:auto;font-size:10px;color:#f0c04a;border:1px solid #6b5a1e;padding:2px 6px;border-radius:6px}
-.pl .me{margin-left:auto;font-size:10px;color:#7fd48a}
+.pl .me{margin-left:auto;font-size:10px;color:var(--green)}
 .rr canvas{width:22px;height:44px;border-radius:5px;background:#fff;flex:none}
 .rr .tagres{margin-left:auto;font-size:11px}
-.settingsGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0 4px}
-.settingsGrid label{margin:0;font-size:11px;text-align:center}
-.settingsGrid select{width:100%;margin-top:4px;padding:8px 4px;border-radius:9px;
-  background:#0f131b;color:#fff;border:1px solid #2c3345;font-size:13px;text-align:center}
+/* 6列。上の2つは3列ぶん、下の3つは2列ぶん使う（5項目が半端に余らないように） */
+.settingsGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:10px 0 4px}
+.settingsGrid label{margin:0;font-size:11px;text-align:center;grid-column:span 2}
+.settingsGrid label.wide{grid-column:span 3}
+.settingsGrid select{width:100%;margin-top:4px;padding:9px 6px;border-radius:9px;
+  background:var(--sunk);color:#fff;border:1px solid #2c3345;font-size:13px;text-align:center}
+.settingsGrid select:disabled{opacity:.5;cursor:not-allowed}
+/* タイトル画面のえらぶ欄 */
+select.pick{flex:1;min-width:0;padding:12px;border-radius:13px;border:1px solid var(--line2);
+  background:var(--sunk);color:#fff;font-size:14px}
 
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;z-index:20;pointer-events:none}
 #topbar{position:absolute;top:max(8px,env(safe-area-inset-top));left:0;right:0;
   display:flex;align-items:center;justify-content:center;gap:10px;padding:0 12px}
-#phaseBox{display:flex;align-items:baseline;gap:8px;background:#0d1017cc;border:1px solid #2a3244;
+#phaseBox{display:flex;align-items:baseline;gap:8px;background:var(--hudBox);border:1px solid var(--line);
   border-radius:12px;padding:6px 12px}
-#phaseName{font-size:11px;color:#9aa4bb}
+#phaseName{font-size:11px;color:var(--sub)}
 #phaseBox.reveal{background:#3a2a12ee;border-color:#c8922e}
 #phaseBox.reveal #phaseName{color:#ffd48a}
 #timer{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -73,7 +105,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .role-hider{background:#1d3b26;color:#8ee5a0;border:1px solid #2f6a41}
 .role-seeker{background:#3d1f22;color:#ff9aa2;border:1px solid #7a343c}
 .role-dead{background:#22262f;color:#8a94a8;border:1px solid #39404f}
-#countBox{font-size:12px;color:#9aa4bb;background:#0d1017cc;border:1px solid #2a3244;border-radius:12px;padding:6px 11px}
+#countBox{font-size:12px;color:var(--sub);background:var(--hudBox);border:1px solid var(--line);border-radius:12px;padding:6px 11px}
 #countBox b{color:#fff;font-size:15px}
 #crosshair{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px}
 #crosshair:before,#crosshair:after{content:"";position:absolute;background:#fff;opacity:.9;box-shadow:0 0 3px #000}
@@ -83,19 +115,20 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #crosshair.target:before,#crosshair.target:after{background:#ff5566}
 #radar{position:absolute;right:max(10px,env(safe-area-inset-right));
   top:calc(max(8px,env(safe-area-inset-top)) + 46px);width:96px;height:96px;
-  background:#0d1017cc;border:1px solid #2a3244;border-radius:14px}
-#toast{position:absolute;left:50%;top:16%;transform:translateX(-50%);font-size:14px;font-weight:600;
-  background:#0d1017e8;border:1px solid #2a3244;padding:9px 16px;border-radius:14px;
+  background:var(--hudBox);border:1px solid var(--line);border-radius:14px}
+/* top / left は placeCrosshair() が毎回入れなおす（ここに書いても効かない） */
+#toast{position:absolute;transform:translateX(-50%);font-size:14px;font-weight:600;
+  background:#0d1017e8;border:1px solid var(--line);padding:9px 16px;border-radius:14px;
   opacity:0;transition:opacity .25s;max-width:88vw;text-align:center}
 #toast.show{opacity:1}
 #poseTag.whistling{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
 #poseTag{position:absolute;left:max(12px,env(safe-area-inset-left));top:max(58px,calc(env(safe-area-inset-top) + 52px));
-  font-size:11px;color:#9aa4bb;background:#0d1017cc;border:1px solid #2a3244;border-radius:10px;padding:5px 10px}
+  font-size:11px;color:var(--sub);background:var(--hudBox);border:1px solid var(--line);border-radius:10px;padding:5px 10px}
 #posePick{position:absolute;right:78px;top:50%;transform:translateY(-50%);
   display:flex;flex-direction:column;gap:6px;pointer-events:auto;
-  background:#0d1017ee;border:1px solid #2a3244;border-radius:14px;padding:7px;
+  background:#0d1017ee;border:1px solid var(--line);border-radius:14px;padding:7px;
   box-shadow:0 10px 30px #0009;touch-action:none}
-#posePick button{display:flex;align-items:center;gap:8px;background:#1b212d;
+#posePick button{display:flex;align-items:center;gap:8px;background:var(--panel2);
   border:1px solid #2e3646;border-radius:10px;padding:8px 12px;font-size:13px;
   font-weight:600;white-space:nowrap;touch-action:none}
 #posePick button.on{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
@@ -106,9 +139,12 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;pointer-events:auto;
   /* 縦に入りきらないときは、左へもう1列ふやす（下の▲▼と重ならないように） */
   flex-wrap:wrap-reverse;align-content:flex-start}
-.rb{width:54px;height:54px;border-radius:16px;background:#141924e6;border:1px solid #2c3444;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:18px;line-height:1}
-.rb i{font-style:normal;font-size:9px;color:#9aa4bb}
+.rb{width:54px;height:54px;border-radius:16px;background:var(--hud);border:1px solid #2c3444;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:18px;line-height:1;
+  overflow:hidden}
+/* ラベルは1行に収める。ボタンの幅いっぱいを使わせないと4文字が切れる */
+.rb i{font-style:normal;font-size:9px;color:var(--sub);
+  white-space:nowrap;width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}
 .rb:active{background:#243046}
 .rb.small{width:40px;height:40px;font-size:14px}
 /* 退出ボタンは右上のすみへ。ほかのボタンから離しておく */
@@ -129,37 +165,29 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .mv{position:absolute;width:62px;height:62px;border-radius:50%;background:#141924e6;border:1px solid #2c3444;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   font-size:19px;line-height:1;color:#cfd6e4;pointer-events:auto}
-.mv i{font-style:normal;font-size:9px;color:#9aa4bb}
+.mv i{font-style:normal;font-size:9px;color:var(--sub)}
 .mv.on{background:#2b5a35;border-color:#4c9a5e}
 #btnUp{right:max(20px,env(safe-area-inset-right));bottom:calc(max(30px,env(safe-area-inset-bottom)) + 74px)}
 #btnDown{right:max(20px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom))}
-#embedWarn{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 162px);
-  background:#3a2a12ee;border:1px solid #c8922e;color:#ffd48a;font-size:12.5px;font-weight:700;
-  padding:9px 16px;border-radius:12px;max-width:92vw;text-align:center;line-height:1.5}
-#embedWarn.danger{background:#3d1216ee;border-color:#e0435a;color:#ff9aa6}
-#freeBanner{position:absolute;left:50%;transform:translateX(-50%);
-  top:max(52px,calc(env(safe-area-inset-top) + 46px));
-  background:#123a2aee;border:1px solid #3f9a5e;color:#a8f0c4;font-size:12px;font-weight:700;
-  padding:7px 14px;border-radius:12px;max-width:92vw;text-align:center}
-#useTag{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 268px);
-  background:#123a2aee;border:1px solid #4fd07a;color:#b6f5cf;font-size:12.5px;font-weight:700;
-  padding:8px 15px;border-radius:12px;max-width:92vw;text-align:center}
-@media (min-width:761px) and (min-height:561px){ #useTag{bottom:112px} }
-#lockTag{position:absolute;left:50%;transform:translateX(-50%);
-  top:max(52px,calc(env(safe-area-inset-top) + 46px));
-  background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0;font-size:12px;font-weight:700;
-  padding:7px 14px;border-radius:12px;white-space:nowrap}
-#clingTag{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 268px);
-  background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff;font-size:12px;font-weight:700;
-  padding:6px 13px;border-radius:12px;white-space:nowrap}
-@media (min-width:761px) and (min-height:561px){ #clingTag{bottom:112px} }
+/* お知らせは「積む」。前は同じ場所に重ねて置いていたので、
+   乗り物のそばで壁にくっつくと文字が重なって読めなかった */
+#topNotes,#botNotes{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  pointer-events:none;max-width:92vw}
+#topNotes{top:max(52px,calc(env(safe-area-inset-top) + 46px))}
+#botNotes{flex-direction:column-reverse;
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 162px)}
+.note{font-size:12.5px;font-weight:700;padding:8px 15px;border-radius:12px;
+  text-align:center;line-height:1.5;max-width:100%}
+.note.warn{background:var(--amberBg);border:1px solid var(--amberLine);color:var(--amber)}
+.note.danger{background:#3d1216ee;border:1px solid #e0435a;color:#ff9aa6}
+.note.ok{background:#123a2aee;border:1px solid #4fd07a;color:#b6f5cf}
+.note.info{background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff}
+.note.lock{background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0}
 #diag{position:absolute;left:8px;top:8px;z-index:60;background:#000000cc;color:#8ef0a8;
   font:11px/1.5 ui-monospace,monospace;padding:8px 10px;border-radius:8px;white-space:pre;
   pointer-events:none;max-width:70vw}
-@media (min-width:761px) and (min-height:561px){ #embedWarn{bottom:26px} }
+@media (min-width:761px) and (min-height:561px){ #botNotes{bottom:26px} }
 #btnTag{position:absolute;left:50%;transform:translateX(-50%);bottom:max(30px,env(safe-area-inset-bottom));
   padding:14px 26px;border-radius:16px;background:#8e2b34;border:1px solid #c4434f;
   font-weight:800;font-size:15px;pointer-events:auto}
@@ -169,13 +197,13 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 /* ---------- paint（右側の色パネル） ---------- */
 #paint{position:fixed;top:0;right:0;bottom:0;z-index:30;display:flex;align-items:center;
   pointer-events:none;padding:8px max(8px,env(safe-area-inset-right)) 8px 0}
-#paintInner{width:186px;max-height:100%;overflow:auto;background:#12161ff2;border:1px solid #2a3244;
+#paintInner{width:186px;max-height:100%;overflow:auto;background:#12161ff2;border:1px solid var(--line);
   border-radius:16px;box-shadow:0 12px 40px #0009;pointer-events:auto;padding:10px;
   display:flex;flex-direction:column;gap:7px}
 .pHead{display:flex;align-items:center;gap:8px}
 .pHead b{font-size:13px;flex:1}
-#paintClose{background:#232a38;border:1px solid #333c4f;border-radius:9px;padding:5px 10px;font-size:11.5px}
-.pBtn{background:#1b212d;border:1px solid #2e3646;border-radius:10px;padding:9px 8px;
+#paintClose{background:var(--btn);border:1px solid var(--line2);border-radius:9px;padding:5px 10px;font-size:11.5px}
+.pBtn{background:var(--panel2);border:1px solid #2e3646;border-radius:10px;padding:9px 8px;
   font-size:12.5px;font-weight:600;text-align:center}
 .pBtn:active{background:#2b3446}
 .pBtn.pick{background:#3a3320;border-color:#6b5c2a;color:#ffd166;font-size:13.5px;padding:11px 8px}
@@ -186,18 +214,18 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #swatches{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .sw{width:100%;aspect-ratio:1;border-radius:6px;border:1.5px solid #ffffff22}
 .sw.active{border-color:#fff;box-shadow:0 0 0 1px #000}
-.pRow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#9aa4bb}
+.pRow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--sub)}
 .pRow.btns{gap:5px}
 .pRow.btns .tool,.pRow.btns .pBtn{flex:1;padding:8px 4px;font-size:11.5px}
 .pRow.zoomrow .pBtn{flex:1;padding:8px 4px;font-size:14px;font-weight:700}
-.tool{background:#1b212d;border:1px solid #2e3646;border-radius:10px;padding:8px;font-size:11.5px;font-weight:600}
+.tool{background:var(--panel2);border:1px solid #2e3646;border-radius:10px;padding:8px;font-size:11.5px;font-weight:600}
 .tool.active{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
-#colorInput{flex:1;height:30px;padding:0;border:1px solid #2e3646;border-radius:9px;background:#1b212d}
+#colorInput{flex:1;height:30px;padding:0;border:1px solid #2e3646;border-radius:9px;background:var(--panel2)}
 #brushSize{flex:1;min-width:40px;accent-color:#54c26a}
-#brushPreview{width:36px;height:36px;border-radius:9px;background:#0f131b;border:1px solid #2c3444;
+#brushPreview{width:36px;height:36px;border-radius:9px;background:var(--sunk);border:1px solid #2c3444;
   display:grid;place-items:center;flex:none}
 #brushDot{border-radius:50%}
-.pHint{font-size:10.5px;color:#7d879c;line-height:1.5}
+.pHint{font-size:10.5px;color:var(--dim);line-height:1.5}
 
 /* せまい画面はボタンを小さく。よこ持ちは幅が広いので、高さでも判定する */
 @media (max-width:760px), (max-height:560px){
@@ -243,13 +271,11 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     top:calc(max(6px,env(safe-area-inset-top)) + 40px)}
   #poseTag{left:calc(max(10px,env(safe-area-inset-left)) + 82px);
     top:calc(max(6px,env(safe-area-inset-top)) + 40px)}
-  #embedWarn{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px);
-    font-size:11.5px;padding:7px 13px;max-width:52vw;line-height:1.4}
-  #useTag,#clingTag{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 142px);
-    font-size:11.5px;padding:6px 12px;max-width:52vw}
+  #botNotes{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px);max-width:52vw;gap:4px}
+  .note{font-size:11.5px;padding:6px 12px;line-height:1.4}
   #posePick{right:56px;top:auto;bottom:calc(env(safe-area-inset-bottom) + 126px);transform:none}
 }
-@media (min-width:761px) and (min-height:561px){ #btnTag{display:none} #embedWarn{bottom:26px} }
+@media (min-width:761px) and (min-height:561px){ #btnTag{display:none} }
 </style>
 </head>
 <body>
@@ -259,7 +285,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 <div id="hud" class="hidden">
   <div id="topbar">
     <div id="phaseBox"><span id="phaseName">じゅんび</span><span id="timer">0:00</span></div>
-    <div id="roleBadge" class="role-hider">かくれる</div>
+    <div id="roleBadge" class="role-hider">&nbsp;</div>
     <div id="countBox">残り <b id="aliveCount">0</b></div>
   </div>
   <div id="crosshair"></div>
@@ -270,7 +296,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnPaint" class="rb">🎨<i>ぬる</i></button>
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
     <div id="posePick" class="hidden"></div>
-    <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
+    <button id="btnFree"  class="rb" title="フリーカメラ">🎥<i>カメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnBoard" class="rb hidden">🎟️<i>のる</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
@@ -283,11 +309,15 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnDown" class="mv">▼<i>さがる</i></button>
     <button id="btnTag">みつけた!</button>
   </div>
-  <div id="useTag" class="hidden"></div>
-  <div id="lockTag" class="hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
-  <div id="clingTag" class="hidden">🧲 くっついています — このまま止まれます（Shift／▼で はなれる）</div>
-  <div id="embedWarn" class="hidden"></div>
-  <div id="freeBanner" class="hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
+  <div id="topNotes">
+    <div id="freeBanner" class="note ok hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
+    <div id="lockTag" class="note lock hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
+  </div>
+  <div id="botNotes">
+    <div id="embedWarn" class="note warn hidden"></div>
+    <div id="clingTag" class="note info hidden">🧲 くっついています — このまま止まれます（Shift／▼で はなれる）</div>
+    <div id="useTag" class="note ok hidden"></div>
+  </div>
   <div id="diag" class="hidden"></div>
 </div>
 
@@ -334,8 +364,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <h1>カメレオン<br><span>かくれんぼ</span></h1>
       <p class="sub">まっ白な体に絵をかいて、背景に溶けこめ。</p>
       <div class="joinrow" style="margin-bottom:4px">
-        <select id="soloMap" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px"></select>
-        <select id="soloRule" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px">
+        <select id="soloMap" class="pick"></select>
+        <select id="soloRule" class="pick">
           <option value="hide">かくれんぼ</option>
           <option value="oni">隠れ鬼</option>
         </select>
@@ -343,10 +373,10 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <button class="big primary" id="btnSolo">ひとりで練習（お絵かき）</button>
       <button class="big" id="btnCreate">部屋をつくる</button>
       <div class="joinrow">
-        <input id="joinCode" placeholder="部屋コード" maxlength="4" autocomplete="off" autocapitalize="characters">
+        <input id="joinCode" placeholder="コード" maxlength="4" autocomplete="off" autocapitalize="characters">
         <button id="btnJoin">入る</button>
       </div>
-      <button class="link" id="btnCfg">⚙ オンライン設定</button>
+      <button class="big ghost" id="btnCfg">⚙ オンライン設定</button>
       <p class="tiny" id="netState">オンライン: 未設定</p>
       <p class="tiny dim">Steam『めっちゃカメレオン』(LEMORION) に着想を得た非公式のファン再現です。公式とは無関係で、絵・モデル・コードはすべて独自のものです。</p>
     </div>
@@ -374,8 +404,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <p class="sub">このコードを友だちに伝えてね</p>
       <div id="playerList"></div>
       <div class="settingsGrid" id="hostSettings">
-        <label>あそびかた<select id="setRule"><option value="hide">かくれんぼ</option><option value="oni">隠れ鬼</option></select></label>
-        <label>マップ<select id="setMap"></select></label>
+        <label class="wide">あそびかた<select id="setRule"><option value="hide">かくれんぼ</option><option value="oni">隠れ鬼</option></select></label>
+        <label class="wide">マップ<select id="setMap"></select></label>
         <label>鬼の人数<select id="setSeekers"><option>1</option><option>2</option><option>3</option></select></label>
         <label>じゅんび<select id="setPrep"><option value="45">45秒</option><option value="60" selected>60秒</option><option value="90">90秒</option><option value="120">120秒</option></select></label>
         <label>さがす<select id="setHunt"><option value="120">2分</option><option value="180" selected>3分</option><option value="240">4分</option></select></label>
@@ -3857,15 +3887,14 @@ function doPick(cx, cy) {
 /* めり込みすぎの警告 */
 function updateEmbedWarn() {
   const el = $('embedWarn');
-  if (me.embedT <= 0) { el.className = 'hidden'; return; }
-  if (me.exposed) {
-    el.className = 'danger';
-    el.textContent = '⚠ めり込みすぎです — いまの位置が鬼に知らされています（体を1割以上出してください）';
-  } else {
-    el.className = '';
-    el.textContent = '⚠ 下の方にめり込みすぎです — あと ' + Math.ceil(REVEAL_SEC - me.embedT) +
+  el.classList.toggle('hidden', me.embedT <= 0);
+  if (me.embedT <= 0) return;
+  el.classList.toggle('danger', !!me.exposed);
+  el.classList.toggle('warn', !me.exposed);
+  el.textContent = me.exposed
+    ? '⚠ めり込みすぎです — いまの位置が鬼に知らされています（体を1割以上出してください）'
+    : '⚠ 下の方にめり込みすぎです — あと ' + Math.ceil(REVEAL_SEC - me.embedT) +
       ' 秒で鬼に場所が知らされます（体が10%以上出ていないとダメ）';
-  }
 }
 
 /* =====================================================================
@@ -3946,7 +3975,7 @@ function toggleMouseLock() {
 }
 addEventListener('pointerlockchange', function () {
   input.locked = document.pointerLockElement === canvasEl;
-  $('lockTag').className = input.locked ? '' : 'hidden';
+  $('lockTag').classList.toggle('hidden', !input.locked);
 });
 addEventListener('mousemove', function (e) {
   mouse.x = e.clientX; mouse.y = e.clientY;
@@ -4695,11 +4724,11 @@ function updateRideButtons() {
   $('btnBoard').querySelector('i').textContent = label[1];
   $('btnBoard').classList.toggle('on', si >= 0);
   const ut = $('useTag');
+  ut.classList.toggle('hidden', !(si >= 0 && !me.ride));
   if (si >= 0 && !me.ride) {
-    ut.className = '';
     ut.textContent = '🎢 ' + rides[si].name + '：' + (isTouch ? '🎢ボタン' : 'E キー') +
       'で' + ((G.rideOn && G.rideOn[si]) ? 'とめる' : 'うごかす');
-  } else ut.className = 'hidden';
+  }
   /* 隠れ鬼は重力＋ジャンプなので、上下ボタンの意味が変わる */
   const oni = oniRule();
   $('btnUp').firstChild.nodeValue = oni ? '⤒' : '▲';
@@ -4965,6 +4994,8 @@ function showResult() {
     row.appendChild(rs);
     box.appendChild(row);
   });
+  /* ソロは leaveToTitle するのでラベルを合わせる（ずっと「ロビーへ」だった） */
+  $('btnAgain').textContent = G.mode === 'online' ? 'ロビーへ' : 'タイトルへ';
   show('scResult');
   paint.close();
 }
@@ -4983,12 +5014,24 @@ function renderLobby() {
     box.appendChild(row);
   });
   const host = net.isHost;
-  $('btnStart').style.opacity = host ? 1 : .4;
   $('btnStart').disabled = !host;
-  $('hostSettings').style.opacity = host ? 1 : .4;
+  /* ホスト以外はさわっても意味が無いので、見た目だけでなく本当に押せなくする */
+  const sels = $('hostSettings').querySelectorAll('select');
+  for (let i = 0; i < sels.length; i++) sels[i].disabled = !host;
+  $('hostSettings').style.opacity = host ? 1 : .55;
+  if (!host) showSettings(G.settings);        /* ホストの設定を映す */
   $('lobbyHint').textContent = host
     ? (net.players.size < 2 ? 'あと1人以上入るのを待っています' : 'ゲーム開始できます')
     : 'ホストが開始するのを待っています';
+}
+/** ロビーの設定欄に値を入れる。ホスト以外はこれで最新の設定が見える */
+function showSettings(s) {
+  if (!s) return;
+  if (s.rule) $('setRule').value = s.rule;
+  if (typeof s.map === 'number') $('setMap').value = s.map;
+  if (s.seekers) $('setSeekers').value = s.seekers;
+  if (s.prep) $('setPrep').value = s.prep;
+  if (s.hunt) $('setHunt').value = s.hunt;
 }
 
 /* =====================================================================
@@ -5012,6 +5055,7 @@ net.on('state', function (s) {
   G.caught = s.caught || {}; G.caughtAt = s.caughtAt || {};
   G.winner = s.winner; G.settings = s.settings || G.settings;
   G.rule = (G.settings && G.settings.rule === 'oni') ? 'oni' : 'hide';
+  showSettings(G.settings);       /* ロビーの表示をホストに合わせる */
   if (s.rideSeed && s.rideSeed !== G.rideSeed) { G.rideSeed = s.rideSeed; placeRideSwitches(G.rideSeed); }
   if (s.rideOn) syncRideOn(s.rideOn);
   if (s.rideU) syncRideU(s.rideU);
@@ -5448,7 +5492,8 @@ function step(dt) {
   const swNow = (hasRides() && !paint.open && !G.free && !me.ride) ? nearestSwitch() : -1;
   if (swNow !== step._sw) { step._sw = swNow; updateRideButtons(); }
   /* 空中で何かに張りついているときだけ知らせる（地面に立っているときは出さない） */
-  $('clingTag').className = (!ghost && !oni && !riding && me.stuck && !me.onGround && !paint.open && !G.free) ? '' : 'hidden';
+  $('clingTag').classList.toggle('hidden',
+    !(!ghost && !oni && !riding && me.stuck && !me.onGround && !paint.open && !G.free));
 
   /* ペイント中に Space 長押し＝3D スポイト */
   if (paint.open && keys.has('Space') && performance.now() - (doPick._t || 0) > 130) {
