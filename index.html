@@ -310,6 +310,7 @@ select.pick{flex:1;min-width:0;padding:12px;border-radius:13px;border:1px solid 
     <button id="btnTag">みつけた!</button>
   </div>
   <div id="topNotes">
+    <div id="netWarn" class="note danger hidden">📶 ホストと通信できていません — 時間が止まって見えるときはこれです</div>
     <div id="freeBanner" class="note ok hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
     <div id="lockTag" class="note lock hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
   </div>
@@ -4315,6 +4316,23 @@ const keys = new Set();
 const input = { mx: 0, my: 0, lookX: 0, lookY: 0, up: false, down: false, locked: false, stick: false };
 const mouse = { x: 0, y: 0 };
 let releaseStick = null, releaseDrag = null;
+
+/* いま画面にさわっている指の一覧。
+   pointerup / pointercancel はブラウザやジェスチャの都合で**取りこぼすことがある**ので、
+   これと突きあわせて「もう離れているのに つかんだまま の指」を毎フレーム見つけて放す。
+   これが無いと、スティックが押されっぱなしになって勝手に歩きつづけたり、
+   sid が残ってパッドが二度と反応しなくなったりする（実機で発生）。
+   capture:true なのは、途中で伝ぱんを止められても必ず数えるため */
+const downPointers = new Set();
+addEventListener('pointerdown', function (e) { downPointers.add(e.pointerId); }, true);
+addEventListener('pointerup', function (e) { downPointers.delete(e.pointerId); }, true);
+addEventListener('pointercancel', function (e) { downPointers.delete(e.pointerId); }, true);
+/** 毎フレームの見はり番。各操作モジュールがここに自分の後始末を積む */
+const inputWatch = [];
+function watchInput() {
+  for (let i = 0; i < inputWatch.length; i++) inputWatch[i]();
+}
+
 /** 指やキーの取りこぼしで動きっぱなしになるのを防ぐ */
 function resetInput() {
   keys.clear();
@@ -4325,9 +4343,16 @@ function resetInput() {
   if (d) d.classList.remove('on');
   if (releaseStick) releaseStick();
   if (releaseDrag) releaseDrag();      /* 視点ドラッグの指も忘れる */
+  downPointers.clear();
 }
 addEventListener('blur', resetInput);
-document.addEventListener('visibilitychange', function () { if (document.hidden) resetInput(); });
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) { resetInput(); return; }
+  /* 画面が戻ってきたとき。スマホをふせているあいだ、タイマーも通信も止まっている */
+  if (G.mode !== 'online' || !net.channel) return;
+  if (net.isHost) { if (hostTimer) hostTick(); }        /* すぐ配って全員を追いつかせる */
+  else net.send('hello', { id: net.id });               /* ホストに今の状態をもらう */
+});
 
 function setPose(p) {
   me.pose = ((p % POSES.length) + POSES.length) % POSES.length;
@@ -4499,22 +4524,38 @@ canvasEl.addEventListener('wheel', function (e) {
     if (moved > 12 || performance.now() - t0 > 450) return;
     onTap(e.clientX, e.clientY);
   }
-  /** つかんでいる指をぜんぶ放す。id が残ったままだと以後のドラッグが丸ごと無視される */
-  function forget(e) {
-    if (e) { pinch.delete(e.pointerId); if (e.pointerId === panId) panId = null; }
-    else { pinch.clear(); panId = null; }
+  /** その指のことを忘れる。id が残ったままだと以後のドラッグが丸ごと無視される。
+      pid を省略すると全部わすれる（resetInput から）。
+      ※ほかの指の pointerup で id まで消してはいけない。
+        消すと「スティックの指を離したら視点が効かなくなる」（2本指で遊べない） */
+  function forget(pid) {
+    const all = pid === undefined;
+    if (all) { pinch.clear(); panId = null; }
+    else {
+      pinch.delete(pid);
+      if (pid === panId) panId = null;
+    }
     if (pinch.size < 2) pinchD = 0;
-    id = null;
-    if (painting) { painting = false; lastSkinPt = null; paint.dirty(true); }
+    if (all || pid === id) {
+      id = null;
+      if (painting) { painting = false; lastSkinPt = null; paint.dirty(true); }
+    }
   }
   canvasEl.addEventListener('pointerup', up);
-  canvasEl.addEventListener('pointercancel', forget);
+  canvasEl.addEventListener('pointercancel', function (e) { forget(e.pointerId); });
   /* 取りこぼし対策：setPointerCapture が失敗していると pointerup が canvas に来ないので、
      window でも受ける。ここが無いと指を canvas の外で離したときに操作が効かなくなる */
-  addEventListener('pointerup', function (e) { if (e.target !== canvasEl) forget(e); });
-  addEventListener('pointercancel', function (e) { if (e.target !== canvasEl) forget(e); });
-  canvasEl.addEventListener('lostpointercapture', forget);
-  releaseDrag = forget;
+  addEventListener('pointerup', function (e) { if (e.target !== canvasEl) forget(e.pointerId); });
+  addEventListener('pointercancel', function (e) { if (e.target !== canvasEl) forget(e.pointerId); });
+  canvasEl.addEventListener('lostpointercapture', function (e) { forget(e.pointerId); });
+  releaseDrag = function () { forget(); };
+  /* 見はり番：もう画面から離れている指を つかんだまま になっていたら放す */
+  inputWatch.push(function () {
+    if (id !== null && !downPointers.has(id)) forget(id);
+    if (panId !== null && !downPointers.has(panId)) panId = null;
+    pinch.forEach(function (v, k) { if (!downPointers.has(k)) pinch.delete(k); });
+    if (pinch.size < 2) pinchD = 0;
+  });
 })();
 
 (function () {   /* バーチャルスティック（左半分のどこを押しても出る） */
@@ -4559,6 +4600,15 @@ canvasEl.addEventListener('wheel', function (e) {
   addEventListener('pointerup', end);
   addEventListener('pointercancel', end);
   releaseStick = end;
+  /* 見はり番。ここが最後のとりで：
+     ①指が離れているのに押されたままなら放す（＝勝手に前に進むのを止める）
+     ②sid が残っていると begin が最初の1行で return してパッドが二度と反応しないので、
+       そこも同時にほどける */
+  inputWatch.push(function () {
+    if (sid !== null && !downPointers.has(sid)) end();
+    /* さわっていないのに入力が残っている（イベントの取りこぼし）ときも止める */
+    else if (sid === null && input.stick) end();
+  });
 })();
 
 $('btnPaint').onclick = togglePaint;
@@ -4623,6 +4673,8 @@ function holdBtn(id, set) {
   b.addEventListener('lostpointercapture', off);
   addEventListener('pointerup', off);        /* 指が外で離れても止める */
   addEventListener('pointercancel', off);
+  /* 見はり番：押しっぱなしで浮きつづけるのを防ぐ */
+  inputWatch.push(function () { if (pid !== null && !downPointers.has(pid)) off(); });
 }
 holdBtn('btnUp', function (v) { input.up = v; });
 holdBtn('btnDown', function (v) { input.down = v; });
@@ -5159,8 +5211,19 @@ function useAction() {
    8. 進行（ホストが正）
 ===================================================================== */
 let hostTimer = null;
+/** この場面が終わる時こく（ミリ秒）。残り時間はここから計算する。
+    setInterval の回数を数えると、スマホをふせたり別アプリに移ったときに
+    間引かれて止まり、**全員がそこで固まる**（実機で発生）。
+    ホストが交代しても続きから数えられるよう、全員がこれを持っておく */
+let phaseEnd = 0;
+function setPhaseTime(secs) {
+  G.remain = secs;
+  phaseEnd = Date.now() + secs * 1000;
+}
 function ensureHostTimer() {          /* 二重に走らせない */
   if (hostTimer) clearInterval(hostTimer);
+  /* ホストを引きついだ直後は、いま持っている残り時間から時こくを組みなおす */
+  if (!phaseEnd || phaseEnd < Date.now() - 2000) phaseEnd = Date.now() + G.remain * 1000;
   hostTimer = setInterval(hostTick, 1000);
 }
 function aliveHiders() {
@@ -5206,7 +5269,7 @@ function hostStart() {
     if (oniRule() && i < nSeek) G.caught[ids[i]] = 1;    /* 最初の鬼も1回に数える */
   }
   /* 隠れ鬼は 10 秒で鬼が来る。アトラクションも最初から動かしておく */
-  G.phase = 'prep'; G.remain = oniRule() ? ONI_PREP : G.settings.prep;
+  G.phase = 'prep'; setPhaseTime(oniRule() ? ONI_PREP : G.settings.prep);
   /* スイッチは毎回ちがう場所に。たねを配って全員おなじ位置にする */
   G.rideSeed = (Math.random() * 2147483647) | 0 || 1;
   placeRideSwitches(G.rideSeed);
@@ -5219,9 +5282,11 @@ function hostStart() {
 function hostTick() {
   if (!net.isHost) { clearInterval(hostTimer); hostTimer = null; return; }
   if (G.phase === 'prep' || G.phase === 'hunt' || G.phase === 'reveal') {
-    G.remain -= 1;
+    /* 残りは「回数を数える」のではなく「時こくから引く」。
+       間引かれても、戻ってきたときに正しい残り時間に追いつく */
+    G.remain = Math.max(0, Math.ceil((phaseEnd - Date.now()) / 1000));
     if (G.remain <= 0) {
-      if (G.phase === 'prep') { G.phase = 'hunt'; G.remain = G.settings.hunt; }   /* 鬼が出てくる */
+      if (G.phase === 'prep') { G.phase = 'hunt'; setPhaseTime(G.settings.hunt); }   /* 鬼が出てくる */
       else if (G.phase === 'hunt') { hostFinish(oniRule() ? 'oni' : 'hider'); return; }
       else {                                   /* 答え合わせ終わり */
         G.phase = 'result'; G.remain = 0;
@@ -5234,7 +5299,7 @@ function hostTick() {
 }
 const REVEAL_SEC2 = 20;
 function hostFinish(w) {
-  G.phase = 'reveal'; G.winner = w; G.remain = REVEAL_SEC2;
+  G.phase = 'reveal'; G.winner = w; setPhaseTime(REVEAL_SEC2);
   hostBroadcast();
   applyState();
 }
@@ -5448,6 +5513,13 @@ function showSettings(s) {
 /* =====================================================================
    10. 通信ハンドラ
 ===================================================================== */
+/** 最後にホストの状態を受けとった時こく。とだえたら画面で知らせる */
+let lastState = 0;
+function updateNetWarn() {
+  const live = G.mode === 'online' && !net.isHost &&
+    (G.phase === 'prep' || G.phase === 'hunt' || G.phase === 'reveal');
+  $('netWarn').classList.toggle('hidden', !(live && lastState && Date.now() - lastState > 8000));
+}
 net.on('players', function () {
   renderLobby();
   remotes.forEach(function (av, id) {
@@ -5461,7 +5533,11 @@ net.on('hello', function () {
   net._h = setTimeout(function () { sendSkin(true); if (net.isHost) hostBroadcast(); }, 300 + Math.random() * 600);
 });
 net.on('state', function (s) {
+  lastState = Date.now();
   if (net.isHost) return;
+  /* 終わる時こくを自分でも持っておく。ホストが落ちて引きついだとき、
+     ここから続きを数えられる（0 のままだと即座に場面が飛ぶ） */
+  phaseEnd = Date.now() + (s.remain || 0) * 1000;
   G.phase = s.phase; G.remain = s.remain; G.roles = s.roles || {};
   G.caught = s.caught || {}; G.caughtAt = s.caughtAt || {};
   G.winner = s.winner; G.settings = s.settings || G.settings;
@@ -5613,6 +5689,7 @@ function leaveToTitle() {
   G.mode = 'menu'; G.phase = 'lobby'; G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
   me.ride = null;
   _lastRole = null; _lastCaught = 0;
+  lastState = 0; phaseEnd = 0;
   show('scTitle');
   refreshNetState();
 }
@@ -5721,6 +5798,7 @@ let prev = performance.now();
 
 function step(dt) {
   step._n = (step._n || 0);
+  watchInput();          /* 取りこぼした指を放す。動かす前にやること */
   /* 鬼は一人称。コースターに乗っているあいだも一人称（車内だと三人称のカメラが埋まる） */
   G.view = paint.open ? 1 : ((myRole() === 'seeker' || rideYawLocked()) ? 0 : 1);
   stepRides(dt);                       /* 座席の位置を先に決めてから、それに乗る */
@@ -5914,6 +5992,7 @@ function step(dt) {
   }
   updateWaitRoom();
   updateEmbedWarn();
+  updateNetWarn();
   /* スイッチのそばに来た／離れたときだけ、ボタンの見た目を作りなおす */
   const swNow = (hasRides() && !paint.open && !G.free && !me.ride) ? nearestSwitch() : -1;
   if (swNow !== step._sw) { step._sw = swNow; updateRideButtons(); }
