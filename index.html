@@ -113,6 +113,21 @@ select.pick{flex:1;min-width:0;padding:12px;border-radius:13px;border:1px solid 
 #crosshair:after{top:50%;left:0;height:2px;width:100%;margin-top:-1px}
 #crosshair.pick:before,#crosshair.pick:after{background:#ffd166}
 #crosshair.target:before,#crosshair.target:after{background:#ff5566}
+/* 音が鳴った向きに出る矢印。画面の中心をぐるっと囲むように置く */
+#dirArrows{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none}
+.darr{position:absolute;left:0;top:0;display:flex;flex-direction:column;
+  align-items:center;gap:2px;will-change:transform,opacity}
+/* 三角だけ回す。名前は回さない（読めなくなるので） */
+.darr b{display:block;width:0;height:0;border-left:13px solid transparent;
+  border-right:13px solid transparent;border-bottom:20px solid currentColor;
+  filter:drop-shadow(0 0 4px #000a)}
+.darr i{font-style:normal;font-size:11px;font-weight:800;color:#fff;
+  background:#0d1017cc;border:1px solid currentColor;border-radius:8px;
+  padding:1px 7px;white-space:nowrap;text-shadow:0 1px 2px #000}
+@media (max-width:760px), (max-height:560px){
+  .darr b{border-left-width:10px;border-right-width:10px;border-bottom-width:16px}
+  .darr i{font-size:10px;padding:1px 5px}
+}
 #radar{position:absolute;right:max(10px,env(safe-area-inset-right));
   top:calc(max(8px,env(safe-area-inset-top)) + 46px);width:96px;height:96px;
   background:var(--hudBox);border:1px solid var(--line);border-radius:14px}
@@ -289,6 +304,7 @@ select.pick{flex:1;min-width:0;padding:12px;border-radius:13px;border:1px solid 
     <div id="countBox">残り <b id="aliveCount">0</b></div>
   </div>
   <div id="crosshair"></div>
+  <div id="dirArrows"></div>
   <div id="poseTag">ポーズ: 立つ</div>
   <canvas id="radar" width="96" height="96" class="hidden"></canvas>
   <div id="toast"></div>
@@ -297,6 +313,7 @@ select.pick{flex:1;min-width:0;padding:12px;border-radius:13px;border:1px solid 
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
     <div id="posePick" class="hidden"></div>
     <button id="btnFree"  class="rb" title="フリーカメラ">🎥<i>カメラ</i></button>
+    <button id="btnWhistle" class="rb">🎵<i>ふえ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnBoard" class="rb hidden">🎟️<i>のる</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
@@ -4384,6 +4401,7 @@ addEventListener('keydown', function (e) {
     if (n >= 0 && n < POSES.length) { setPose(n); showPosePick(false); }
   }
   else if (e.code === 'KeyC') putClone();
+  else if (e.code === 'KeyQ') whistleNow();
   else if (e.code === 'KeyE') useAction();
   else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleMouseLock();
   else if (e.code === 'KeyV') toggleFree();          /* ※5 はポーズに使うので V にしてある */
@@ -4648,6 +4666,7 @@ function toggleFree() {
   }
 }
 $('btnFree').onclick = toggleFree;
+$('btnWhistle').onclick = whistleNow;
 $('btnClone').onclick = putClone;
 $('btnRole').onclick = function () {
   G.soloRole = G.soloRole === 'seeker' ? 'hider' : 'seeker';
@@ -4831,19 +4850,77 @@ function updateTracers() {
 /* =====================================================================
    6.7 口笛レーダー（右上・4分割）
 ===================================================================== */
-const whistleMarks = [];   /* {dx, dz, until, kind}  ワールド座標での向き */
-const WHISTLE_SHOW = 1000; /* 口笛の印は 1 秒 */
-const SHOT_SHOW = 1800;    /* 銃声の印は少し長め */
+const whistleMarks = [];   /* {dx, dz, until, kind, color, name}  ワールド座標での向き */
+const WHISTLE_SHOW = 2600; /* 口笛の印。短いと気づけないので長めに出す */
+const SHOT_SHOW = 2000;    /* 銃声の印 */
 
-function addMark(x, z, kind) {
+/* --- 誰の音か色で分かるようにする ---------------------------------
+   なまえ順に並べて、その位置で色相を等間かくに配る。
+   計算だけで決まるので、全員の画面で同じ人が同じ色になる。       */
+const PLAYER_HUES = [];
+function playerSlot(id) {
+  const ids = Array.from(net.players.keys()).sort();
+  const i = ids.indexOf(id);
+  return { i: i < 0 ? 0 : i, n: Math.max(1, ids.length) };
+}
+function playerColor(id) {
+  const s = playerSlot(id);
+  /* 銃声の黄色(45度あたり)とぶつからないように、少しずらして配る */
+  return 'hsl(' + Math.round((s.i * 360 / s.n + 200) % 360) + ',88%,64%)';
+}
+function playerName(id) {
+  const p = net.players.get(id);
+  return p && p.name ? p.name : '？';
+}
+
+function addMark(x, z, kind, who) {
   const dx = x - me.pos.x, dz = z - me.pos.z;
   const d = Math.hypot(dx, dz) || 1;
   whistleMarks.push({
     dx: dx / d, dz: dz / d, kind: kind || 'whistle',
+    color: kind === 'shot' ? '#ffbe3c' : (who ? playerColor(who) : '#ff5566'),
+    name: kind === 'shot' ? '🔫' : (who ? playerName(who) : '🎵'),
     until: performance.now() + (kind === 'shot' ? SHOT_SHOW : WHISTLE_SHOW)
   });
 }
-function addWhistleMark(x, z) { addMark(x, z, 'whistle'); }
+function addWhistleMark(x, z, who) { addMark(x, z, 'whistle', who); }
+
+/* --- 鳴った向きに矢印を出す（レーダーだけでは気づきにくいので） --- */
+const arrowPool = [];
+function drawDirArrows() {
+  const box = $('dirArrows');
+  const now = performance.now();
+  const R = Math.min(innerWidth, innerHeight) * 0.30;
+  const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
+  const rx = -Math.cos(me.yaw), rz = Math.sin(me.yaw);
+  for (let i = 0; i < whistleMarks.length; i++) {
+    const w = whistleMarks[i];
+    let el = arrowPool[i];
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'darr';
+      el.innerHTML = '<b></b><i></i>';
+      box.appendChild(el);
+      arrowPool[i] = el;
+    }
+    /* 向きは毎フレーム計算しなおす（振り向いても矢印がついてくる） */
+    const f = w.dx * fx + w.dz * fz, r = w.dx * rx + w.dz * rz;
+    const ang = Math.atan2(r, f);                 /* 0=正面 +=右 */
+    const span = w.kind === 'shot' ? SHOT_SHOW : WHISTLE_SHOW;
+    const life = Math.min(1, (w.until - now) / span);
+    el.style.color = w.color;
+    /* 出た瞬間だけ ふわっと 大きくする（上限を付けないと、表示時間を変えたときに巨大化する） */
+    const pop = 1 + 0.5 * Math.min(1, Math.max(0, life - 0.85) / 0.15);
+    el.style.transform = 'translate(-50%,-50%) translate(' +
+      (Math.sin(ang) * R).toFixed(1) + 'px,' + (-Math.cos(ang) * R).toFixed(1) + 'px)' +
+      ' scale(' + pop.toFixed(2) + ')';
+    el.style.opacity = Math.min(1, life * 2.2).toFixed(2);
+    el.firstChild.style.transform = 'rotate(' + (ang * 180 / Math.PI).toFixed(1) + 'deg)';
+    el.lastChild.textContent = w.name;
+    el.classList.remove('hidden');
+  }
+  for (let i = whistleMarks.length; i < arrowPool.length; i++) arrowPool[i].classList.add('hidden');
+}
 
 function drawRadar() {
   const cv = $('radar');
@@ -4863,9 +4940,9 @@ function drawRadar() {
     const r = w.dx * rx + w.dz * rz;      /* 左右 */
     const ang = Math.atan2(r, f);         /* 0=正面 +=右 */
     const q = (r >= 0 ? 1 : 0) + (f >= 0 ? 0 : 2);   /* 0:左前 1:右前 2:左後 3:右後 */
-    if (lit[q] !== 'shot') lit[q] = w.kind;
+    if (!lit[q] || lit[q].kind !== 'shot') lit[q] = { kind: w.kind, color: w.color };
     const span = w.kind === 'shot' ? SHOT_SHOW : WHISTLE_SHOW;
-    dots.push({ ang: ang, a: (w.until - now) / span, kind: w.kind });
+    dots.push({ ang: ang, a: (w.until - now) / span, kind: w.kind, color: w.color });
   }
 
   g.clearRect(0, 0, S, S);
@@ -4873,15 +4950,16 @@ function drawRadar() {
   const cells = [[gap, gap], [C + gap / 2, gap], [gap, C + gap / 2], [C + gap / 2, C + gap / 2]];
   const cw = C - gap * 1.5;
   for (let i = 0; i < 4; i++) {
-    g.fillStyle = lit[i] === 'shot' ? 'rgba(255,190,60,.85)'
-      : lit[i] ? 'rgba(255,86,102,.85)' : 'rgba(255,255,255,.07)';
-    g.strokeStyle = lit[i] === 'shot' ? '#ffd98a'
-      : lit[i] ? '#ff8894' : 'rgba(255,255,255,.16)';
-    g.lineWidth = 1;
     const x = cells[i][0], y = cells[i][1];
+    g.lineWidth = 1;
+    /* 光っているマスは、鳴らした人の色でぬる */
+    g.globalAlpha = lit[i] ? 0.8 : 1;
+    g.fillStyle = lit[i] ? lit[i].color : 'rgba(255,255,255,.07)';
+    g.strokeStyle = lit[i] ? '#fff' : 'rgba(255,255,255,.16)';
     g.beginPath();
     if (g.roundRect) g.roundRect(x, y, cw, cw, 6); else g.rect(x, y, cw, cw);
     g.fill(); g.stroke();
+    g.globalAlpha = 1;
   }
   /* 「前」の目じるし */
   g.fillStyle = 'rgba(255,255,255,.55)';
@@ -4891,15 +4969,15 @@ function drawRadar() {
   g.fillStyle = 'rgba(255,255,255,.3)';
   g.fillText('後', C, S - 3);
 
-  /* 正確な向きの点 */
+  /* 正確な向きの点。色は鳴らした人ごと */
   for (let i = 0; i < dots.length; i++) {
     const d = dots[i];
     const px = C + Math.sin(d.ang) * 36, py = C - Math.cos(d.ang) * 36;
-    g.globalAlpha = Math.max(0, d.a);
-    g.fillStyle = '#fff';
-    g.beginPath(); g.arc(px, py, 4.5, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = d.kind === 'shot' ? '#ffbe3c' : '#ff5566'; g.lineWidth = 2;
-    g.beginPath(); g.arc(px, py, 7.5, 0, Math.PI * 2); g.stroke();
+    g.globalAlpha = Math.max(0, Math.min(1, d.a * 2.2));
+    g.fillStyle = d.color;
+    g.beginPath(); g.arc(px, py, 5, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(px, py, 5, 0, Math.PI * 2); g.stroke();
     g.globalAlpha = 1;
   }
 }
@@ -4993,21 +5071,51 @@ function doWhistle() {
   $('poseTag').classList.add('whistling');
   setTimeout(function () { $('poseTag').classList.remove('whistling'); }, 400);
 }
+/** 自分の「鳴らす順番」。人数で等分した持ち時間の、自分の番のところで鳴る。
+    全員が同じ計算をするので、ぶつからずに順ぐりに鳴る */
+function whistleSlotT() {
+  const s = playerSlot(net.id);
+  return WHISTLE_EVERY * (s.i / s.n);
+}
+/** いま次の自分の番までの秒数 */
+function nextSlotIn() {
+  const t = (Date.now() / 1000) % WHISTLE_EVERY;
+  const mine = whistleSlotT();
+  let d = mine - t;
+  if (d <= 0) d += WHISTLE_EVERY;
+  return d;
+}
+function canWhistle() {
+  if (G.mode === 'solo') return true;
+  return G.phase === 'hunt' && myRole() === 'hider' && !amDead();
+}
+/** 自分から鳴らす。次の自動の番までを数えなおすので、早めに鳴らして間をあけられる */
+function whistleNow() {
+  if (!canWhistle()) { toast('いまは笛を鳴らせません'); return; }
+  if (me.whistleT > WHISTLE_EVERY - 1.2) { toast('つづけては鳴らせません'); return; }
+  doWhistle();
+  me.whistleT = WHISTLE_EVERY;
+  toast('🎵 笛を鳴らしました（場所が知られます）', 1600);
+}
 function tickWhistle(dt) {
-  const on = (G.mode === 'solo') ||
-    (G.phase === 'hunt' && myRole() === 'hider' && !amDead());
-  if (!on) { me.whistleT = Math.random() * WHISTLE_EVERY; return; }
+  /* 古い印はここで捨てる（レーダーが出ていない場面でもたまらないように） */
+  const now = performance.now();
+  while (whistleMarks.length && whistleMarks[0].until < now) whistleMarks.shift();
+  if (!canWhistle()) { me.whistleT = nextSlotIn(); return; }
   me.whistleT -= dt;
   if (me.whistleT > 0) return;
-  me.whistleT = WHISTLE_EVERY;
+  /* 次は自分の番まで。人数で等分してあるので、みんなで順ぐりに鳴る */
+  me.whistleT = G.mode === 'solo' ? WHISTLE_EVERY : Math.max(2, nextSlotIn());
   if (G.mode === 'solo') {
     /* 練習中はレーダーの見かたを確かめられるよう、適当な場所から鳴らす */
     const a = Math.random() * Math.PI * 2, d = 8 + Math.random() * 20;
     const x = me.pos.x + Math.cos(a) * d, z = me.pos.z + Math.sin(a) * d;
     const sp = spatial(x, z);
     playWhistle(sp.pan, Math.max(0.25, sp.vol));
-    addWhistleMark(x, z);
+    addWhistleMark(x, z, net.id);
   } else {
+    /* 自分の笛には矢印を出さない（自分の位置＝向きが決まらず、まっすぐ前を指してしまう）。
+       鳴ったことは poseTag が光って知らせる */
     doWhistle();
   }
 }
@@ -5422,6 +5530,7 @@ function applyState() {
     !(isTouch && role === 'seeker' && !dead && (solo || G.phase === 'hunt')));
   $('phaseBox').classList.toggle('reveal', G.phase === 'reveal');
   $('btnClone').classList.toggle('hidden', !canClone());
+  $('btnWhistle').classList.toggle('hidden', !canWhistle());
   $('freeBanner').classList.toggle('hidden', !G.free);
   $('btnRole').classList.toggle('hidden', !solo);
   $('btnRole').firstChild.nodeValue = role === 'seeker' ? '🎨' : '👹';
@@ -5562,7 +5671,7 @@ net.on('shot', function (p) {
   const sp = spatial(p.x, p.z);
   playBang(sp.pan, sp.vol);
   spawnTracer(p.x, p.y, p.z, p.tx, p.ty, p.tz);
-  addMark(p.x, p.z, 'shot');                 /* レーダーに黄色い印 */
+  addMark(p.x, p.z, 'shot', p.id);           /* レーダーに黄色い印 */
   if (sp.dist < 60) toast('🔫 発砲音！' + (sp.dist < 18 ? '（すぐ近く）' : ''), 1600);
 });
 net.on('clone', function (p) {
@@ -5575,7 +5684,7 @@ net.on('whistle', function (p) {
   if (p.id === net.id) return;
   const sp = spatial(p.x, p.z);
   playWhistle(sp.pan, Math.max(0.12, sp.vol));
-  addWhistleMark(p.x, p.z);
+  addWhistleMark(p.x, p.z, p.id);       /* 誰が鳴らしたかで色が変わる */
 });
 function remoteOf(id) {
   let av = remotes.get(id);
@@ -6128,6 +6237,9 @@ function step(dt) {
   const showRadar = !paint.open && (G.mode === 'solo' || G.phase === 'prep' || G.phase === 'hunt');
   $('radar').classList.toggle('hidden', !showRadar);
   if (showRadar) drawRadar();
+  /* 鳴った向きの矢印。レーダーが出ていない場面では出さない */
+  $('dirArrows').classList.toggle('hidden', !showRadar);
+  if (showRadar) drawDirArrows();
 
   /* --- クロスヘア --- */
   const ch = $('crosshair');
