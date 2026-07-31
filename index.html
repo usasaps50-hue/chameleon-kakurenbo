@@ -1491,6 +1491,10 @@ function buildSchool() {
     [-30, 16], [-6, 16], [14, 16], [30, 16],
     [-28, 24], [-20, 30], [-8, 28], [8, 22], [16, 30], [26, 22], [33, 32]
   ];
+  /* 空とライトは明示しておく（書かないと、前のマップの設定がそのまま残る） */
+  scene.background = new THREE.Color('#9ec8e8');
+  scene.fog = new THREE.Fog('#9ec8e8', 70, 170);
+  amb.intensity = 0.86; sun.intensity = 0.24;
   return spawns;
 }
 
@@ -3010,9 +3014,416 @@ function buildAmusement() {
 }
 
 /* =====================================================================
+   マップ：かくれんぼ屋敷
+   原作の定番マップ。家具・絵画・本棚・柱が多くて、
+   「平らで塗りやすい面」と「人型のシルエットを崩せる物」をたくさん置いてある。
+   低い すきま はポーズと連動していて、しゃがむ・丸まると入れる場所がある。
+===================================================================== */
+/** 壁紙。上半分が模様、下半分が腰板（こしいた） */
+function wallpaperTex(base, patt, wain) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    /* ダマスク風のひし形をならべる */
+    g.strokeStyle = patt; g.lineWidth = 2;
+    for (let y = 0; y < 170; y += 34) {
+      for (let x = 0; x < w; x += 34) {
+        const ox = (y / 34) % 2 ? 17 : 0;
+        g.beginPath();
+        g.moveTo(x + ox, y + 6); g.lineTo(x + ox + 13, y + 17);
+        g.lineTo(x + ox, y + 28); g.lineTo(x + ox - 13, y + 17);
+        g.closePath(); g.stroke();
+      }
+    }
+    g.fillStyle = wain; g.fillRect(0, 176, w, h - 176);      /* 腰板 */
+    g.fillStyle = '#00000022'; g.fillRect(0, 176, w, 5);
+    g.strokeStyle = '#00000018'; g.lineWidth = 2;
+    for (let x = 0; x < w; x += 42) { g.beginPath(); g.moveTo(x, 184); g.lineTo(x, h); g.stroke(); }
+  }, 1, 1);
+}
+/** 寄せ木の床 */
+function parquetTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#8a5c34'; g.fillRect(0, 0, w, h);
+    const C = ['#96663a', '#83552f', '#9c6d40', '#8d5d33'];
+    for (let y = 0; y < h; y += 64) {
+      for (let x = 0; x < w; x += 64) {
+        const v = ((x / 64) + (y / 64)) % 2;
+        for (let i = 0; i < 4; i++) {
+          g.fillStyle = C[(i + x / 64 + y / 64) % 4];
+          if (v) g.fillRect(x + 1, y + i * 16 + 1, 62, 14);
+          else g.fillRect(x + i * 16 + 1, y + 1, 14, 62);
+        }
+      }
+    }
+  }, 1, 1);
+}
+/** 浴室のタイル */
+function tileTex(a, b) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = b; g.fillRect(0, 0, w, h);
+    g.fillStyle = a;
+    for (let y = 0; y < h; y += 32) for (let x = 0; x < w; x += 32) g.fillRect(x + 2, y + 2, 28, 28);
+  }, 1, 1);
+}
+/** 絵画（額ぶち入り）。中身は抽象画なので、そのまま体に塗ってもごまかせる */
+function paintingTex(seed) {
+  const r = makeRng(seed);
+  return canvasTex(192, 152, function (g, w, h) {
+    g.fillStyle = '#7a5a2e'; g.fillRect(0, 0, w, h);            /* 額 */
+    g.fillStyle = '#caa964'; g.fillRect(6, 6, w - 12, h - 12);  /* 額の内がわ */
+    const sky = ['#5e86b8', '#8fa8c4', '#c8b48a', '#6d7f5a'][Math.floor(r() * 4)];
+    g.fillStyle = sky; g.fillRect(14, 14, w - 28, h - 28);
+    /* 丘や木のようなもの */
+    for (let i = 0; i < 5; i++) {
+      g.fillStyle = ['#4a6b42', '#3b5636', '#7d6a44', '#2f4a35'][Math.floor(r() * 4)];
+      g.beginPath();
+      const cx = 14 + r() * (w - 28), cy = h - 26 - r() * 30;
+      g.moveTo(cx - 30 - r() * 20, h - 14);
+      g.lineTo(cx, cy);
+      g.lineTo(cx + 30 + r() * 20, h - 14);
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = '#00000022'; g.fillRect(14, 14, w - 28, 8);
+  });
+}
+/** 台所の戸だな */
+function cabinetTex() {
+  return canvasTex(256, 128, function (g, w, h) {
+    g.fillStyle = '#d8cbb2'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#a08e6e'; g.lineWidth = 3;
+    for (let x = 0; x < w; x += 64) {
+      g.strokeRect(x + 5, 6, 54, h - 12);
+      g.fillStyle = '#8e7d5e'; g.fillRect(x + 28, h / 2 - 8, 8, 16);   /* 取っ手 */
+      g.fillStyle = '#d8cbb2';
+    }
+  }, 1, 1);
+}
+/** じゅうたん */
+function rugTex(a, b) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = a; g.fillRect(0, 0, w, h);
+    g.strokeStyle = b; g.lineWidth = 8;
+    g.strokeRect(16, 16, w - 32, h - 32);
+    g.strokeRect(40, 40, w - 80, h - 80);
+    g.lineWidth = 4;
+    for (let i = 0; i < 6; i++) {
+      g.beginPath();
+      g.arc(w / 2, h / 2, 20 + i * 12, 0, Math.PI * 2);
+      g.stroke();
+    }
+  }, 1, 1);
+}
+
+function buildMansion() {
+  const HW = 30, WH = 6.6;                  /* 家のはんぶんの幅・壁の高さ */
+  const WP = wallpaperTex('#e8ded0', '#cbb99c', '#8b6a48');    /* ふつうの壁紙 */
+  const WP2 = wallpaperTex('#d6e2df', '#aec4c0', '#5c6b6a');   /* 青みの壁紙 */
+  const WP3 = wallpaperTex('#efe0d6', '#d9bda6', '#94674a');   /* 赤みの壁紙 */
+  const FLOOR = parquetTex();
+  const TILE = tileTex('#dfe8ec', '#b4c4cc');
+  const CAB = cabinetTex();
+  const RUG1 = rugTex('#7a3038', '#d8b878'), RUG2 = rugTex('#2f4a5e', '#c9b088');
+
+  scene.background = new THREE.Color('#171319');
+  scene.fog = new THREE.Fog('#171319', 40, 110);
+  amb.intensity = 0.88; sun.intensity = 0.20;
+
+  /* ---------- 床と天井 ---------- */
+  floorAt(-HW, -HW, HW, HW, FLOOR, 5);
+  /* 天井（当たり判定なし。浮ける高さ 5.6 でつかえる） */
+  flat(0, 5.9, 0, HW * 2, HW * 2, 0, Math.PI / 2, '#efe9dd');
+
+  /* ---------- 外まわりの壁 ---------- */
+  wall(0, -HW, HW * 2, 0, WP, WH);
+  wall(0, HW, HW * 2, 0, WP, WH);
+  wall(-HW, 0, HW * 2, Math.PI / 2, WP, WH);
+  wall(HW, 0, HW * 2, Math.PI / 2, WP, WH);
+
+  return mansionRooms(WP, WP2, WP3, FLOOR, TILE, CAB, RUG1, RUG2);
+}
+
+/* ---------- 屋敷の道具 ---------- */
+/** 柱。ホールにずらっと立てる。裏にぴったり張りつける太さにしてある */
+function pillar(x, z) {
+  box(x, 0, z, 1.15, 4.6, 1.15, '#e2d8c6');
+  box(x, 4.6, z, 1.45, 0.35, 1.45, '#d2c6b0');       /* 上のかざり */
+  box(x, 0, z, 1.45, 0.3, 1.45, '#d2c6b0', 0, true); /* 足もと（判定は柱ぶんで足りる） */
+}
+/** 絵画。壁にかける。ry は壁の向き */
+function painting(x, y, z, ry, seed, w) {
+  w = w || 1.6;
+  flat(x, y, z, w, w * 0.79, ry, 0, paintingTex(seed));
+}
+/** 本だな（屋敷むけ。学校のより背が高い） */
+function shelfTall(x, z, ry, w) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, w, 0.1, 0.9, '#5c4126');
+  part(g, -w / 2 + 0.06, 0, 0, 0.12, 3.0, 0.9, '#6b4c2c');
+  part(g, w / 2 - 0.06, 0, 0, 0.12, 3.0, 0.9, '#6b4c2c');
+  part(g, 0, 2.9, 0, w, 0.16, 1.0, '#6b4c2c');
+  for (let i = 0; i < 5; i++) {
+    part(g, 0, 0.5 + i * 0.55, 0, w - 0.2, 0.07, 0.86, '#6b4c2c');
+    /* 本は「ひとかたまり」で置く。1冊ずつ板にすると本だな1つで200枚を超えて、
+       スマホでは重くなる。少し離れれば見た目はほとんど変わらない */
+    let x = -w / 2 + 0.15;
+    for (let k = 0; k < 6 && x < w / 2 - 0.25; k++) {
+      const bw = Math.min(0.5 + ((i * 3 + k * 5) % 4) * 0.18, w / 2 - 0.15 - x);
+      const c = ['#8e3b3b', '#3b5e8e', '#3e7a4c', '#8a7430', '#6b3b7a', '#a05a2c'][(i * 7 + k * 3) % 6];
+      part(g, x + bw / 2, 0.57 + i * 0.55, 0.02, bw, 0.34 + (k % 3) * 0.06, 0.62, c);
+      x += bw + 0.04;
+    }
+  }
+  addSolid(x, z, w, 0.95, 3.06, ry);
+}
+/** ベッド。下に すきま があって、しゃがむと入れる（鬼は体が大きくて入れない） */
+function bed(x, z, ry) {
+  const g = furn(x, z, ry);
+  for (const sx of [-1.0, 1.0]) for (const sz of [-1.9, 1.9]) {
+    part(g, sx, 0, sz, 0.16, 3.2, 0.16, '#5c4126');            /* 天がい柱 */
+  }
+  part(g, 0, 3.1, 0, 2.3, 0.18, 4.1, '#6b4c2c');               /* 天がい */
+  part(g, 0, 1.05, 0, 2.16, 0.34, 3.96, '#efe6d8');            /* マットレス */
+  part(g, 0, 1.39, -1.2, 2.0, 0.16, 1.4, '#c4d4e2');           /* かけぶとん */
+  part(g, 0, 1.39, 1.3, 1.4, 0.2, 0.5, '#fff');                /* まくら */
+  part(g, 0, 1.39, 1.55, 2.2, 0.14, 0.5, '#e8dcc8');
+  /* 判定：下端 1.05 なので、しゃがみ(0.98)なら もぐれる。立つ(1.39)では入れない */
+  addSolid(x, z, 2.3, 4.1, 1.73, ry, 1.05);
+  addSolid(x, z, 2.3, 4.1, 3.28, ry, 3.1);                     /* 天がいの上にも乗れる */
+}
+/** 洋だんす。中に入れる（前があいている） */
+function wardrobe(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, -1.05, 0, 0, 0.16, 3.1, 1.1, '#6b4c2c');
+  part(g, 1.05, 0, 0, 0.16, 3.1, 1.1, '#6b4c2c');
+  part(g, 0, 0, -0.5, 2.26, 3.1, 0.16, '#5c4126');
+  part(g, 0, 3.0, 0, 2.4, 0.2, 1.25, '#6b4c2c');
+  part(g, 0, 0, 0, 2.26, 0.14, 1.1, '#5c4126');
+  part(g, 0, 2.3, 0, 2.0, 0.08, 0.9, '#4e3720');               /* ハンガーの棒 */
+  for (let i = 0; i < 5; i++) {                                 /* 服 */
+    const c = ['#8e3b3b', '#3b5e8e', '#3e7a4c', '#5a5a64', '#8a7430'][i];
+    part(g, -0.8 + i * 0.4, 1.15, 0.02, 0.3, 1.1, 0.4, c);
+  }
+  /* 左右と奥の柱ぶんだけ判定を置く＝中にすっぽり入れる */
+  addSolid(x + Math.cos(ry || 0) * 1.05, z - Math.sin(ry || 0) * 1.05, 0.2, 1.1, 3.1, ry);
+  addSolid(x - Math.cos(ry || 0) * 1.05, z + Math.sin(ry || 0) * 1.05, 0.2, 1.1, 3.1, ry);
+  addSolid(x, z, 2.4, 1.25, 3.2, ry, 3.0);                     /* 上には乗れる */
+}
+/** 長テーブル。下は丸まると入れる高さ */
+function longTable(x, z, ry, len) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0.78, 0, len, 0.12, 1.5, '#8a5c34');
+  part(g, 0, 0.88, 0, len - 0.2, 0.04, 1.3, '#e8e0cc');        /* テーブルクロス */
+  for (const sx of [-len / 2 + 0.4, len / 2 - 0.4]) {
+    part(g, sx, 0, -0.55, 0.18, 0.78, 0.18, '#6b4c2c');
+    part(g, sx, 0, 0.55, 0.18, 0.78, 0.18, '#6b4c2c');
+  }
+  for (let i = 0; i < 4; i++) {                                 /* しょっき */
+    part(g, -len / 2 + 1.0 + i * (len - 2) / 3, 0.92, 0, 0.34, 0.06, 0.34, '#fdfaf2');
+  }
+  addSolid(x, z, len, 1.5, 0.92, ry, 0.78);                     /* 天板だけ。下はくぐれる */
+}
+/** いす（背もたれつき）。座面に乗れる */
+function chairH(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0.46, 0, 0.5, 0.08, 0.5, '#7a5230');
+  part(g, 0, 0.54, -0.21, 0.5, 0.85, 0.09, '#6b4c2c');
+  for (const sx of [-0.2, 0.2]) for (const sz of [-0.2, 0.2]) part(g, sx, 0, sz, 0.07, 0.46, 0.07, '#6b4c2c');
+  addSolid(x, z, 0.55, 0.55, 0.54, ry);
+}
+/** ソファ。背もたれの裏に隠れられる */
+function sofa(x, z, ry, w) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, w, 0.4, 1.0, '#6b3b44');
+  part(g, 0, 0.4, 0.06, w - 0.3, 0.22, 0.86, '#8a4c58');       /* 座ぶとん */
+  part(g, 0, 0.4, -0.44, w, 0.72, 0.24, '#6b3b44');            /* 背もたれ */
+  part(g, -w / 2 + 0.13, 0.4, 0, 0.26, 0.4, 1.0, '#6b3b44');
+  part(g, w / 2 - 0.13, 0.4, 0, 0.26, 0.4, 1.0, '#6b3b44');
+  addSolid(x, z, w, 1.05, 0.62, ry);
+}
+/** 暖炉。中にもぐれる（原作でいう「へこみ」） */
+function fireplace(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, -1.3, 0, 0, 0.7, 2.4, 1.1, '#8e8478');
+  part(g, 1.3, 0, 0, 0.7, 2.4, 1.1, '#8e8478');
+  part(g, 0, 1.9, 0, 3.3, 0.5, 1.2, '#8e8478');
+  part(g, 0, 0, -0.4, 2.0, 1.9, 0.3, '#2e2a26');               /* おく */
+  part(g, 0, 2.4, 0, 3.6, 0.22, 1.35, '#a89a86');              /* マントルピース */
+  part(g, 0, 0, 0.1, 1.4, 0.16, 0.5, '#4a3b30');               /* まき */
+  const c = Math.abs(Math.cos(ry || 0)), s = Math.abs(Math.sin(ry || 0));
+  addSolid(x + Math.cos(ry || 0) * 1.3, z - Math.sin(ry || 0) * 1.3, 0.7 * c + 1.1 * s, 0.7 * s + 1.1 * c, 2.4);
+  addSolid(x - Math.cos(ry || 0) * 1.3, z + Math.sin(ry || 0) * 1.3, 0.7 * c + 1.1 * s, 0.7 * s + 1.1 * c, 2.4);
+  addSolid(x, z, 3.6, 1.35, 2.62, ry, 1.9);                    /* 上の板。下はくぐれる */
+}
+/** 浴そう。中に入って ふちに ぴったり収まる */
+function bathtub(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, -1.0, 2.2, 0.75, 0.2, '#f2f4f6');
+  part(g, 0, 0, 1.0, 2.2, 0.75, 0.2, '#f2f4f6');
+  part(g, -1.0, 0, 0, 0.2, 0.75, 2.2, '#f2f4f6');
+  part(g, 1.0, 0, 0, 0.2, 0.75, 2.2, '#f2f4f6');
+  part(g, 0, 0, 0, 2.0, 0.1, 1.9, '#e8eef2');
+  part(g, 0, 0.1, 0, 1.9, 0.28, 1.8, '#bcdcea');               /* お湯 */
+  for (const d of [[-1.0, 0], [1.0, 0], [0, -1.0], [0, 1.0]]) {
+    addSolid(x + d[0], z + d[1], d[0] ? 0.24 : 2.2, d[0] ? 2.2 : 0.24, 0.75);
+  }
+}
+/** 階段。段をつたって上がれる。下は物おき */
+function stairs(x, z, ry, n) {
+  const g = furn(x, z, ry);
+  for (let i = 0; i < n; i++) {
+    part(g, 0, i * 0.32, -i * 0.42, 2.6, 0.32, 0.44, i % 2 ? '#8a5c34' : '#96663a');
+  }
+  const c = Math.cos(ry || 0), s = Math.sin(ry || 0);
+  for (let i = 0; i < n; i++) {
+    addSolid(x - s * (-i * 0.42) + c * 0, z + c * (-i * 0.42), 2.6 * Math.abs(c) + 0.44 * Math.abs(s),
+      2.6 * Math.abs(s) + 0.44 * Math.abs(c), (i + 1) * 0.32, 0);
+  }
+}
+/** よろい かぶと。人型なので、そばに立つとまぎれる */
+function armour(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, 0.8, 0.16, 0.8, '#4e5158');
+  part(g, 0, 0.16, 0, 0.5, 0.62, 0.34, '#8e939c');             /* 胴 */
+  part(g, 0, 0.78, 0, 0.3, 0.3, 0.3, '#a4a9b2');               /* かぶと */
+  part(g, -0.32, 0.2, 0, 0.14, 0.55, 0.14, '#8e939c');
+  part(g, 0.32, 0.2, 0, 0.14, 0.55, 0.14, '#8e939c');
+  part(g, -0.14, 0, 0, 0.16, 0.2, 0.16, '#8e939c');
+  part(g, 0.14, 0, 0, 0.16, 0.2, 0.16, '#8e939c');
+  part(g, 0.44, 0.16, 0, 0.08, 1.5, 0.08, '#6b6f78');          /* やり */
+  addSolid(x, z, 0.85, 0.85, 1.1, ry);
+}
+/** つぼ。ならべると人ひとりぶんの かげ になる */
+function urn(x, z, r, h, color) {
+  cyl(x, 0, z, r * 0.7, 0.12, color, 12);
+  cyl(x, 0.12, z, r, h, color, 14);
+  cyl(x, 0.12 + h, z, r * 0.6, 0.18, color, 12);
+}
+
+function mansionRooms(WP, WP2, WP3, FLOOR, TILE, CAB, RUG1, RUG2) {
+  const WH = 6.6, IH = 5.6;         /* 外壁の高さ／間仕切りの高さ */
+
+  /* ---------- 間仕切り（wall は blockers に入るので、三人称カメラがちゃんと寄る） ---------- */
+  /* 北がわ：しょさい / しんしつ / よくしつ を横に3つ */
+  wall(-30, -12, 12, 0, WP, IH);          /* しょさい の南 */
+  wall(-13, -12, 8, 0, WP, IH);
+  wall(-4.5, -12, 5, 0, WP2, IH);         /* しんしつ の南（入口をあける） */
+  wall(11, -12, 8, 0, WP2, IH);
+  wall(22.5, -12, 9, 0, TILE, IH);        /* よくしつ の南 */
+  wall(-15, -21, 18, Math.PI / 2, WP, IH);/* しょさい／しんしつ の あいだ */
+  wall(14, -25, 10, Math.PI / 2, TILE, IH);/* しんしつ／よくしつ の あいだ */
+
+  /* 南がわ：リビング / ダイニング */
+  wall(-30, 8, 10, 0, WP3, IH);
+  wall(-14, 8, 14, 0, WP3, IH);
+  wall(2, 8, 8, 0, WP, IH);
+  wall(19, 8, 14, 0, WP, IH);
+  wall(-6, 19, 22, Math.PI / 2, WP3, IH); /* リビング／ダイニング の あいだ */
+
+  /* ---------- 部屋ごとの床 ---------- */
+  floorAt(-30, -30, -15, -12, FLOOR, 4);
+  floorAt(14, -30, 30, -12, TILE, 2.2);            /* よくしつ */
+  flat(-9, 0.03, 0, 13, 13, 0, -Math.PI / 2, RUG2, [1, 1]);    /* ホールのじゅうたん */
+  flat(-19, 0.03, 20, 12, 11, 0, -Math.PI / 2, RUG1, [1, 1]);  /* リビングのじゅうたん */
+
+  /* ---------- げんかんホール ---------- */
+  for (const px of [-14, -4, 6]) for (const pz of [-7, 3]) pillar(px, pz);
+  stairs(16, -2, Math.PI / 2, 9);                   /* 2階へは行けないが、上に乗れる */
+  box(20.5, 2.88, -6, 9, 0.4, 8, '#8a5c34');        /* 階段の上の おどりば */
+  box(20.5, 0, -9.6, 9, 2.88, 0.5, '#7a4f2c');
+  armour(-19, -6, Math.PI / 2); armour(-19, 2, Math.PI / 2);
+  urn(-1.5, -10.5, 0.5, 1.3, '#3e6b7a'); urn(0.5, -10.5, 0.42, 1.0, '#7a4a3e');
+  urn(11, 6, 0.5, 1.2, '#5c6b3e');
+  for (let i = 0; i < 4; i++) painting(-13 + i * 6, 2.6, -11.0, 0, 11 + i, 1.7);
+  cyl(-9, 4.3, 0, 0.9, 0.25, '#d8c07a', 12, true);  /* シャンデリア */
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    cyl(-9 + Math.cos(a) * 0.8, 4.55, Math.sin(a) * 0.8, 0.09, 0.4, '#fff3cf', 8, true);
+  }
+
+  /* ---------- しょさい（本だらけ） ---------- */
+  shelfTall(-28.6, -26, Math.PI / 2, 6); shelfTall(-28.6, -19, Math.PI / 2, 6);
+  shelfTall(-24, -28.6, 0, 6); shelfTall(-17, -28.6, 0, 6);
+  shelfTall(-16.4, -24, Math.PI / 2, 5);
+  longTable(-23, -19, 0, 3.2);
+  chairH(-23, -17.4, Math.PI); chairH(-23, -20.6, 0);
+  sofa(-21, -14.5, Math.PI, 2.6);
+  urn(-27, -14, 0.45, 1.1, '#6b4a7a');
+  painting(-20, 2.8, -28.6, 0, 21, 1.9);
+  cardboard(-26.5, -15.5, 0.4);
+
+  /* ---------- しんしつ ---------- */
+  bed(-6, -24, 0);
+  bed(4, -24, 0);
+  wardrobe(-12.5, -18, Math.PI / 2);
+  wardrobe(9.5, -18, -Math.PI / 2);
+  box(-1, 0, -28.6, 1.2, 0.7, 0.9, '#6b4c2c');       /* ナイトテーブル */
+  box(9, 0, -28.6, 1.2, 0.7, 0.9, '#6b4c2c');
+  curtain(-11, -29.2, 0, 3.4, '#4a5c7a');
+  curtain(8, -29.2, 0, 3.4, '#4a5c7a');
+  painting(1.5, 2.7, -28.6, 0, 31, 1.6);
+  chairStack(11.5, -27, 0.3);
+
+  /* ---------- よくしつ ---------- */
+  bathtub(19, -25, 0);
+  bathtub(26, -25, Math.PI / 2);
+  box(16, 0, -14.5, 1.4, 0.85, 0.7, '#f2f4f6');      /* 洗面台 */
+  box(19, 0, -14.5, 1.4, 0.85, 0.7, '#f2f4f6');
+  flat(16, 1.75, -14.0, 1.1, 1.2, 0, 0, '#cfe4ee');  /* かがみ */
+  flat(19, 1.75, -14.0, 1.1, 1.2, 0, 0, '#cfe4ee');
+  box(28.5, 0, -15, 1.0, 1.9, 1.0, '#dfe8ec');       /* 物入れ */
+  urn(23, -14.5, 0.42, 0.9, '#b4c4cc');
+  curtain(24, -29.2, 0, 3.0, '#dfe8ec');
+
+  /* ---------- リビング ---------- */
+  fireplace(-28.4, 20, Math.PI / 2);
+  sofa(-19, 15.5, 0, 3.4);
+  sofa(-19, 24.5, Math.PI, 3.4);
+  sofa(-13.5, 20, -Math.PI / 2, 3.0);
+  longTable(-19, 20, 0, 2.4);
+  shelfTall(-9.5, 26, -Math.PI / 2, 5);
+  painting(-19, 2.9, 8.9, 0, 41, 2.2);
+  painting(-24, 2.6, 28.6, 0, 42, 1.7);
+  painting(-14, 2.6, 28.6, 0, 43, 1.7);
+  curtain(-27, 28.8, 0, 3.4, '#7a3038');
+  armour(-9.5, 12, -Math.PI / 2);
+  urn(-27, 12, 0.55, 1.4, '#7a3038');
+  cardboard(-11.5, 28, -0.3);
+
+  /* ---------- ダイニング／だいどころ ---------- */
+  longTable(4, 18, 0, 7.0);
+  for (let i = 0; i < 3; i++) { chairH(1 + i * 3, 16.2, Math.PI); chairH(1 + i * 3, 19.8, 0); }
+  /* だいどころの台。上に乗れる */
+  box(14, 0, 12, 10, 0.9, 1.6, '#c8bca4');
+  flat(14, 0.45, 12.82, 10, 0.9, 0, 0, CAB, [3, 1]);
+  box(28.6, 0, 18, 1.6, 2.6, 10, '#d8cbb2');          /* 背の高い戸だな */
+  flat(27.75, 1.3, 18, 9.6, 2.4, Math.PI / 2, 0, CAB, [3, 1]);
+  box(22, 0, 26, 2.4, 0.9, 1.4, '#c8bca4');
+  box(9, 1.9, 26, 6, 0.7, 1.0, '#d8cbb2', 0, true);   /* 宙づりの戸だな。下をくぐれる */
+  addSolid(9, 26, 6, 1.0, 2.6, 0, 1.9);
+  flat(9, 2.25, 25.48, 6, 0.66, 0, 0, CAB, [2, 1]);
+  shelfTall(4, 28.6, Math.PI, 5);
+  beerCrates(26, 12, 0.2);
+  cardboard(24, 22, 0.5);
+  urn(11, 22, 0.5, 1.2, '#3e6b7a');
+  painting(14, 2.7, 8.9, 0, 51, 1.8);
+  curtain(20, 28.8, 0, 3.4, '#8a7430');
+
+  /* ---------- スポーン ---------- */
+  return [
+    [-9, -3], [-2, 0], [-14, 4], [2, -6], [-9, 6],
+    [-20, -16], [-27, -24], [-19, -26], [-25, -14],
+    [-6, -20], [4, -20], [-12, -26], [9, -26],
+    [19, -21], [26, -21], [17, -14],
+    [-19, 12], [-24, 20], [-14, 24], [-10, 27],
+    [4, 14], [8, 21], [22, 16], [26, 24], [14, 27]
+  ];
+}
+
+/* =====================================================================
    マップの登録と切りかえ
 ===================================================================== */
 const MAPS = [
+  { name: 'かくれんぼ屋敷', build: buildMansion, ceil: 5.6 },  /* 屋内なので天井まで */
   { name: '学校',     build: buildSchool,     ceil: 6 },
   { name: '道頓堀',   build: buildDotonbori,  ceil: 9 },   /* 川ぞいなので高く飛べる */
   { name: '遊園地',   build: buildAmusement,  ceil: 27 }   /* 観覧車の天辺まで登れる高さ */
@@ -5285,6 +5696,8 @@ $('cfgSave').onclick = function () {
    12. メインループ
 ===================================================================== */
 const GRAVITY = 17, CEIL_Y = 6.0;   /* 既定。マップごとに G.ceilY で上書き */
+/* 三人称カメラがこれより寄ったら、一人称にきりかえる（自分の背中で画面が埋まるため） */
+const TP_MIN = 1.25;
 const EMBED_MIN = 0.10, REVEAL_SEC = 10;
 const camDir = new THREE.Vector3(), lookAt = new THREE.Vector3();
 const tpRay = new THREE.Raycaster();
@@ -5574,11 +5987,19 @@ function step(dt) {
     if (paint.open) me.camD = d;
     else if (d < me.camD) me.camD = d;                 /* 壁が来たら即よける */
     else me.camD += (d - me.camD) * (1 - Math.pow(0.005, dt));
-    camera.position.copy(lookAt).addScaledVector(camDir, me.camD);
-    /* 床下にもぐらない */
-    const gy = groundHeightAt(world.solids, camera.position.x, camera.position.z, camera.position.y, 0, 0.2);
-    camera.position.y = Math.max(gy + 0.28, camera.position.y);
-    camera.lookAt(lookAt);
+    /* これ以上寄れないところまで来たら、一人称にきりかえる。
+       壁ぎわに隠れるのがこのゲームの遊びなので、背中で画面が埋まると何も見えない */
+    if (!paint.open && me.camD < TP_MIN) {
+      camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
+      camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
+      myAvatar.setVisible(false);
+    } else {
+      camera.position.copy(lookAt).addScaledVector(camDir, me.camD);
+      /* 床下にもぐらない */
+      const gy = groundHeightAt(world.solids, camera.position.x, camera.position.z, camera.position.y, 0, 0.2);
+      camera.position.y = Math.max(gy + 0.28, camera.position.y);
+      camera.lookAt(lookAt);
+    }
   }
 
   /* ペイント画面に隠れないよう、投影をずらして自分を見える範囲の中央に置く */
