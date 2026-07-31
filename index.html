@@ -3796,7 +3796,7 @@ function updateEmbedWarn() {
 const keys = new Set();
 const input = { mx: 0, my: 0, lookX: 0, lookY: 0, up: false, down: false, locked: false, stick: false };
 const mouse = { x: 0, y: 0 };
-let releaseStick = null;
+let releaseStick = null, releaseDrag = null;
 /** 指やキーの取りこぼしで動きっぱなしになるのを防ぐ */
 function resetInput() {
   keys.clear();
@@ -3806,6 +3806,7 @@ function resetInput() {
   if (u) u.classList.remove('on');
   if (d) d.classList.remove('on');
   if (releaseStick) releaseStick();
+  if (releaseDrag) releaseDrag();      /* 視点ドラッグの指も忘れる */
 }
 addEventListener('blur', resetInput);
 document.addEventListener('visibilitychange', function () { if (document.hidden) resetInput(); });
@@ -3842,7 +3843,7 @@ addEventListener('keydown', function (e) {
   else if (e.code === 'KeyC') putClone();
   else if (e.code === 'KeyE') useAction();
   else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleMouseLock();
-  else if (e.code === 'Digit5') toggleFree();
+  else if (e.code === 'KeyV') toggleFree();          /* ※5 はポーズに使うので V にしてある */
   else if (e.code === 'Escape' && paint.open) togglePaint();
 });
 addEventListener('keyup', function (e) { keys.delete(e.code); });
@@ -3980,8 +3981,22 @@ canvasEl.addEventListener('wheel', function (e) {
     if (moved > 12 || performance.now() - t0 > 450) return;
     onTap(e.clientX, e.clientY);
   }
+  /** つかんでいる指をぜんぶ放す。id が残ったままだと以後のドラッグが丸ごと無視される */
+  function forget(e) {
+    if (e) { pinch.delete(e.pointerId); if (e.pointerId === panId) panId = null; }
+    else { pinch.clear(); panId = null; }
+    if (pinch.size < 2) pinchD = 0;
+    id = null;
+    if (painting) { painting = false; lastSkinPt = null; paint.dirty(true); }
+  }
   canvasEl.addEventListener('pointerup', up);
-  canvasEl.addEventListener('pointercancel', function (e) { pinch.delete(e.pointerId); if (e.pointerId === panId) panId = null; id = null; });
+  canvasEl.addEventListener('pointercancel', forget);
+  /* 取りこぼし対策：setPointerCapture が失敗していると pointerup が canvas に来ないので、
+     window でも受ける。ここが無いと指を canvas の外で離したときに操作が効かなくなる */
+  addEventListener('pointerup', function (e) { if (e.target !== canvasEl) forget(e); });
+  addEventListener('pointercancel', function (e) { if (e.target !== canvasEl) forget(e); });
+  canvasEl.addEventListener('lostpointercapture', forget);
+  releaseDrag = forget;
 })();
 
 (function () {   /* バーチャルスティック（左半分のどこを押しても出る） */
@@ -4634,7 +4649,11 @@ function hostStart() {
   if ((G.settings.map || 0) !== G.map) buildMap(G.settings.map || 0);
   const ids = Array.from(net.players.keys());
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
-  ids.sort(function () { return Math.random() - 0.5; });
+  /* きちんと混ぜる（sort に乱数を返す書きかたは偏って、先に入った人が鬼になりやすい） */
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+  }
   /* 隠れ鬼は鬼を交代していく遊びなので、鬼はいつも1人 */
   const nSeek = oniRule() ? 1 : Math.min(G.settings.seekers, ids.length - 1);
   G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
@@ -5001,7 +5020,7 @@ function enterGame() {
   respawn();
   applyState();
   placeCrosshair();
-  if (!isTouch) toast('WASD=移動 / ドラッグ=視点 / Space=浮く / Ctrl=下がる / Shift=走る / F=ペイント / R=ポーズ', 6500);
+  if (!isTouch) toast('WASD=移動 / ドラッグ=視点 / Space=浮く / Ctrl=下がる / F=ペイント / R=ポーズ / E=つかう', 6500);
   else toast('左スティックで移動、画面をなぞって視点。🎨でペイント', 5000);
 }
 function leaveToTitle() {
