@@ -2384,13 +2384,16 @@ function buildAmusement() {
     rides.push({
       name: 'かいてんもくば',
       boardZone: { x: cx, z: cz + 7.4, r: 4.2, y: 1.3 },
+      exitAt: { x: cx, y: 1.3, z: cz + 7.4 },        /* 降りたら乗り場へ */
       seats: seats,
       step: function (dt, on) {
         if (on) rot += dt * 0.42;
         spin.rotation.y = rot;
         for (let i = 0; i < horses.length; i++) {
           const h = horses[i];
-          const bob = on ? Math.sin(rot * 3 + i * 1.05) * 0.34 : 0;
+          /* rot は止めると進まないので、上下も自然に止まる。
+             ここで 0 に戻すと、木馬の上に立っていた人が落ちる */
+          const bob = Math.sin(rot * 3 + i * 1.05) * 0.34;
           h.g.position.y = bob;
           const a = h.a + rot;
           const hx = cx + Math.cos(a) * 3.6, hz = cz + Math.sin(a) * 3.6;
@@ -2470,6 +2473,7 @@ function buildAmusement() {
     rides.push({
       name: 'かんらんしゃ',
       boardZone: { x: cx, z: cz + 9.5, r: 4.6, y: 1.2 },
+      exitAt: { x: cx, y: 1.2, z: cz + 9.5 },        /* てっぺんで降りると落ちるので乗り場へ */
       seats: seats,
       step: function (dt, on) {
         if (on) rot += dt * 0.17;
@@ -2542,7 +2546,10 @@ function buildAmusement() {
     const curve = new THREE.CatmullRomCurve3(P, true, 'catmullrom', 0.5);
     const LEN = curve.getLength();
     const SEGN = 460;
-    const pts = curve.getPoints(SEGN);
+    /* ※ getPoints は「曲線パラメータ」等間隔、computeFrenetFrames は「長さ」等間隔。
+       混ぜると点と枠の対応が最大11m ずれてレールがねじれるので、
+       点のほうを getSpacedPoints（＝長さ等間隔）にそろえること */
+    const pts = curve.getSpacedPoints(SEGN);
     const fr = curve.computeFrenetFrames(SEGN, true);
     /* three の枠は「ねじれが最小になる向き」でつながっているので、
        駅のところで上を向いている側をえらべば、たて回転でも自然に一回転する */
@@ -2563,8 +2570,10 @@ function buildAmusement() {
     }
 
     /* --- レール2本・まくらぎ・けた --- */
+    /* ※ i < SEGN。閉じた曲線なので最後の点は最初の点と同じで、
+       両方入れると長さ0のつなぎ目ができてチューブが乱れる */
     const railL = [], railR = [];
-    for (let i = 0; i <= SEGN; i++) {
+    for (let i = 0; i < SEGN; i++) {
       railL.push(pts[i].clone().addScaledVector(SIDE[i], 0.78));
       railR.push(pts[i].clone().addScaledVector(SIDE[i], -0.78));
     }
@@ -2573,7 +2582,7 @@ function buildAmusement() {
       group.add(new THREE.Mesh(new THREE.TubeGeometry(c2, SEGN, 0.15, 6, true), mat('#e0455a')));
     }
     const spine = [];
-    for (let i = 0; i <= SEGN; i++) spine.push(pts[i].clone().addScaledVector(UP[i], -0.52));
+    for (let i = 0; i < SEGN; i++) spine.push(pts[i].clone().addScaledVector(UP[i], -0.52));
     group.add(new THREE.Mesh(new THREE.TubeGeometry(
       new THREE.CatmullRomCurve3(spine, true, 'catmullrom', 0.5), SEGN, 0.26, 6, true), mat('#4a8fd0')));
     const tieGeo = new THREE.BoxGeometry(0.14, 0.62, 1.86);
@@ -2645,35 +2654,86 @@ function buildAmusement() {
         w.rotation.x = Math.PI / 2; w.position.set(wx, 0.1, wz); g2.add(w);
       }
       cars.push(g2);
-      seats.push({ pos: new THREE.Vector3(), yaw: 0, name: (i + 1) + '両目' });
+      /* q = 座席の向き（たて回転でも壊れないよう、角度ではなく回転そのもので持つ）
+         up = 座席の「上」。逆さのときは下を向くので、カメラの高さはこっちに足す */
+      seats.push({ pos: new THREE.Vector3(), yaw: 0, name: (i + 1) + '両目',
+        q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0) });
     }
-    const carSol = addSolid(ST[0], ZB, 2.4, 2.4, 1, 0, 0);
+    /* 当たり判定は車両ごと。走っているあいだは全部どかす */
+    const carSols = [];
+    for (let i = 0; i < CARS; i++) carSols.push(addSolid(ST[0], ZB, 2.4, 1.9, -1, 0, 9999));
 
-    let u = 0, v = 6, yTop = 19.4;
-    const m4 = new THREE.Matrix4(), tmpT = new THREE.Vector3(), tmpP = new THREE.Vector3();
-    /* 駅にとまっている u をさがしておく（止めたときはここに戻す） */
+    const m4 = new THREE.Matrix4(), m4c = new THREE.Matrix4();
+    const tmpT = new THREE.Vector3(), tmpP = new THREE.Vector3(), tmpB = new THREE.Vector3();
+    /* 駅にとまっている u をさがしておく。ここが一周の起点になる */
     let uStation = 0;
     {
       let best = 1e9;
-      for (let i = 0; i <= 200; i++) {
-        const p = curve.getPointAt(i / 200);
+      for (let i = 0; i <= 400; i++) {
+        const p = curve.getPointAt(i / 400);
         const d = Math.hypot(p.x - ST[0], p.z - ZB);
-        if (d < best && p.y < 5) { best = d; uStation = i / 200; }
+        if (d < best && p.y < 5) { best = d; uStation = i / 400; }
       }
-      u = uStation;
     }
+    /* 巻きあげの てっぺん が一周のどこかも見ておく（そこまではチェーンでゆっくり登る） */
+    let sTop = 0.25, yTop = 19.4;
+    {
+      let hi = -1e9;
+      for (let i = 0; i <= 400; i++) {
+        const s0 = i / 400;
+        const y = curve.getPointAt((uStation + s0) % 1).y;
+        if (y > hi) { hi = y; sTop = s0; }
+      }
+      yTop = hi;
+    }
+    const S_BRAKE = 1 - 14 / LEN;      /* 最後の14mはブレーキ区間 */
+    let s = 0;                         /* 駅からの進みぐあい 0..1 */
+    let v = 0;                         /* いまの速さ m/s */
+    let waitT = 0;                     /* 駅での停車時間 */
+    let running = false;               /* 走り出したら、一周するまでは止まらない */
+    let sWant = -1;                    /* ネット同期で寄せたい位置（-1 なら無し） */
     rides.push({
       name: 'ジェットコースター',
       boardZone: { x: ST[0], z: ZB + 2.6, r: 7.5, y: 2.6 },
       exitAt: { x: ST[0], y: 2.6, z: ZB + 2.6 },       /* 降りたら駅にもどす */
       seats: seats,
+      /* 駅にとまっているときだけ乗れる（走っている車両に瞬間移動できてしまうので） */
+      canBoard: function () { return !running; },
+      getU: function () { return s; },
+      setU: function (t) { sWant = t; },
       step: function (dt, on) {
-        if (on) {
-          /* 高いところではおそく、低いところでは速く（位置エネルギー→速さ） */
-          const y = curve.getPointAt(u).y;
-          v = Math.max(4.0, Math.sqrt(Math.max(1, 2 * 14 * (yTop + 0.4 - y))));
-          u = (u + v * dt / LEN) % 1;
+        /* --- 走らせる --- */
+        if (!running) {
+          if (on) {
+            waitT += dt;
+            if (waitT > 1.5) { running = true; waitT = 0; playWhistle(0, 0.28); }   /* 発車ベル */
+          } else waitT = 0;
         }
+        if (running) {
+          if (s < sTop) {
+            v = 3.2;                                   /* 巻きあげ。チェーンでゆっくり登る */
+          } else if (s > S_BRAKE) {
+            const k = (1 - s) / (1 - S_BRAKE);         /* 駅の手前でブレーキ */
+            v = Math.max(1.2, 18 * k);
+          } else {
+            /* 高いところではおそく、低いところでは速く（位置エネルギー→速さ） */
+            const y = curve.getPointAt((uStation + s) % 1).y;
+            v = Math.max(4.0, Math.sqrt(Math.max(1, 2 * 14 * (yTop + 0.4 - y))));
+          }
+          s += v * dt / LEN;
+          if (s >= 1) { s = 0; v = 0; running = false; waitT = 0; }   /* 駅にもどって停車 */
+        }
+        /* ホストからの位置に、少しずつ寄せる（いきなり飛ぶと見た目が壊れる） */
+        if (sWant >= 0) {
+          let d = sWant - s;
+          if (d > 0.5) d -= 1; else if (d < -0.5) d += 1;
+          if (Math.abs(d) < 0.004) { s = sWant; sWant = -1; }
+          else s = (s + d * Math.min(1, dt / 0.3) + 1) % 1;
+          if (s > 0) running = true;
+        }
+
+        /* --- 車両と座席 --- */
+        const u = (uStation + s) % 1;
         for (let i = 0; i < CARS; i++) {
           const cu = ((u - i * CARGAP / LEN) % 1 + 1) % 1;
           curve.getPointAt(cu, tmpP);
@@ -2682,17 +2742,26 @@ function buildAmusement() {
           m4.makeBasis(tmpT, f.up, f.side);
           m4.setPosition(tmpP.x + f.up.x * 0.55, tmpP.y + f.up.y * 0.55, tmpP.z + f.up.z * 0.55);
           cars[i].matrix.copy(m4);
-          seats[i].pos.set(tmpP.x + f.up.x * 1.05, tmpP.y + f.up.y * 1.05, tmpP.z + f.up.z * 1.05);
-          seats[i].yaw = Math.atan2(tmpT.x, tmpT.z);
-          seats[i].upY = f.up.y;
+          const st = seats[i];
+          st.pos.set(tmpP.x + f.up.x * 1.05, tmpP.y + f.up.y * 1.05, tmpP.z + f.up.z * 1.05);
+          st.up.copy(f.up);
+          /* 座席の向き。カメラは自分の -Z を向くので、進む向きの逆を z 軸にする */
+          tmpB.copy(tmpT).negate();
+          m4c.makeBasis(f.side, f.up, tmpB);
+          st.q.setFromRotationMatrix(m4c);
+          /* 真上・真下を向いているときの atan2 は暴れるので、そのときは前の向きを保つ */
+          if (Math.hypot(tmpT.x, tmpT.z) > 0.2) st.yaw = Math.atan2(tmpT.x, tmpT.z);
         }
-        /* 走っているあいだは車両の当たり判定をどけておく（はね飛ばされないように） */
-        if (on) { carSol.y0 = 9999; }
-        else {
-          const p = seats[0].pos;
-          carSol.x0 = p.x - 3.6; carSol.x1 = p.x + 3.6;
-          carSol.z0 = p.z - 3.6; carSol.z1 = p.z + 3.6;
-          carSol.y0 = p.y - 1.0; carSol.top = p.y - 0.05;
+
+        /* --- 当たり判定。走っているあいだは全部どかす --- */
+        for (let i = 0; i < CARS; i++) {
+          const sol = carSols[i], p = seats[i].pos;
+          if (running) { sol.y0 = 9999; sol.top = -1; continue; }   /* top も戻さないと幽霊の床が残る */
+          const c = Math.abs(Math.cos(seats[i].yaw)), sn = Math.abs(Math.sin(seats[i].yaw));
+          const ex = sn * 1.2 + c * 0.95, ez = c * 1.2 + sn * 0.95;
+          sol.x0 = p.x - ex; sol.x1 = p.x + ex;
+          sol.z0 = p.z - ez; sol.z1 = p.z + ez;
+          sol.y0 = p.y - 1.1; sol.top = p.y - 0.05;
         }
       }
     });
@@ -4353,9 +4422,17 @@ const ndc = new THREE.Vector2();
 const _aimOrg = new THREE.Vector3(), _aimDir = new THREE.Vector3(), _aimPt = new THREE.Vector3();
 /** 狙いは「キャラの目から、自分が向いている向き」。三人称カメラの位置には左右されない */
 function setAimRay() {
-  _aimOrg.set(me.pos.x, me.pos.y + (POSES[me.pose].eye || 1.5) * me.scale, me.pos.z);
-  const cp = Math.cos(me.pitch);
-  _aimDir.set(Math.sin(me.yaw) * cp, -Math.sin(me.pitch), Math.cos(me.yaw) * cp);
+  const rst = me.ride ? me.ride.ride.seats[me.ride.i] : null;
+  if (rst && rst.q) {
+    /* 乗り物の座席は逆さにもなるので、yaw/pitch ではなくカメラの向きをそのまま使う
+       （乗車中は必ず一人称なので、カメラ＝目の位置） */
+    _aimOrg.copy(camera.position);
+    camera.getWorldDirection(_aimDir);
+  } else {
+    _aimOrg.set(me.pos.x, me.pos.y + (POSES[me.pose].eye || 1.5) * me.scale, me.pos.z);
+    const cp = Math.cos(me.pitch);
+    _aimDir.set(Math.sin(me.yaw) * cp, -Math.sin(me.pitch), Math.cos(me.yaw) * cp);
+  }
   ray.set(_aimOrg, _aimDir);
   ray.far = 26;
 }
@@ -4541,6 +4618,7 @@ function nearestSeat() {
   let best = null, bd = 1e9;
   for (let k = 0; k < rides.length; k++) {
     const r = rides[k], bz = r.boardZone;
+    if (r.canBoard && !r.canBoard()) continue;      /* 走っている車両には飛び乗れない */
     const inZone = !!bz && Math.hypot(me.pos.x - bz.x, me.pos.z - bz.z) < bz.r &&
       me.pos.y > (bz.y || 0) - 2.5 && me.pos.y < (bz.y || 0) + 4.5;
     const lim = inZone ? 1e9 : 2.9;
@@ -4555,7 +4633,13 @@ function toggleBoard() {
   if (me.ride) { getOff(); return; }
   if (paint.open || G.free) { toast('ペイント／フリーカメラ中は のれません'); return; }
   const b = nearestSeat();
-  if (!b) { toast('近くに スイッチ も のりば もありません'); return; }
+  if (!b) {
+    /* 走っているコースターのそばに立っている、というのが一番ありがちなので理由を出す */
+    let busy = false;
+    for (let k = 0; k < rides.length; k++) if (rides[k].canBoard && !rides[k].canBoard()) busy = true;
+    toast(busy ? '走っています。駅にもどってくるまで待ってください' : '近くに スイッチ も のりば もありません');
+    return;
+  }
   me.ride = b; me.rideYaw = 0; me.vel.set(0, 0, 0);
   me.pos.copy(b.ride.seats[b.i].pos);
   toast(b.ride.name + ' の ' + b.ride.seats[b.i].name + ' に のりました（もう一度おすと おりる）');
@@ -4648,8 +4732,19 @@ function hostBroadcast() {
   net.send('state', {
     phase: G.phase, remain: G.remain, roles: G.roles, caught: G.caught, caughtAt: G.caughtAt,
     winner: G.winner, settings: G.settings, map: G.map,
-    rideSeed: G.rideSeed, rideOn: G.rideOn
+    rideSeed: G.rideSeed, rideOn: G.rideOn, rideU: rideU()
   });
+}
+/** 乗り物がいま一周のどこにいるか。ホストが配って、全員の見えかたをそろえる */
+function rideU() {
+  if (!hasRides()) return null;
+  return rides.map(function (r) { return r.getU ? +r.getU().toFixed(4) : -1; });
+}
+function syncRideU(arr) {
+  if (!Array.isArray(arr) || !hasRides()) return;
+  for (let i = 0; i < rides.length; i++) {
+    if (rides[i].setU && arr[i] >= 0) rides[i].setU(arr[i]);
+  }
 }
 function hostStart() {
   clearClones();
@@ -4919,6 +5014,7 @@ net.on('state', function (s) {
   G.rule = (G.settings && G.settings.rule === 'oni') ? 'oni' : 'hide';
   if (s.rideSeed && s.rideSeed !== G.rideSeed) { G.rideSeed = s.rideSeed; placeRideSwitches(G.rideSeed); }
   if (s.rideOn) syncRideOn(s.rideOn);
+  if (s.rideU) syncRideU(s.rideU);
   if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
     clearClones();
     buildMap(s.map);
@@ -5148,6 +5244,9 @@ const GRAVITY = 17, CEIL_Y = 6.0;   /* 既定。マップごとに G.ceilY で�
 const EMBED_MIN = 0.10, REVEAL_SEC = 10;
 const camDir = new THREE.Vector3(), lookAt = new THREE.Vector3();
 const tpRay = new THREE.Raycaster();
+/* 乗り物の座席から首を振るのに使う（使いまわして毎フレームの作りなおしを避ける） */
+const _qy = new THREE.Quaternion(), _qx = new THREE.Quaternion();
+const _axY = new THREE.Vector3(0, 1, 0), _axX = new THREE.Vector3(1, 0, 0);
 let prev = performance.now();
 
 function step(dt) {
@@ -5383,9 +5482,22 @@ function step(dt) {
     camera.position.copy(me.fcam);
     camera.rotation.set(-me.fpitch, me.fyaw + Math.PI, 0, 'YXZ');
   } else if (G.view === 0) {
-    camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
-    /* three のカメラは自分の -Z を向くので、進行方向 (sin,cos) に合わせて 180 度ずらす */
-    camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
+    const rst = me.ride ? me.ride.ride.seats[me.ride.i] : null;
+    if (rst && rst.q) {
+      /* 乗り物の座席は、たて回転で逆さにもなる。yaw と pitch の2つでは表せないので、
+         座席の向きそのものを受けとって、そこから首を振る */
+      camera.position.set(
+        me.pos.x + rst.up.x * eyeY,
+        me.pos.y + rst.up.y * eyeY,     /* 逆さのときは下にぶら下がる */
+        me.pos.z + rst.up.z * eyeY);
+      camera.quaternion.copy(rst.q)
+        .multiply(_qy.setFromAxisAngle(_axY, me.rideYaw))
+        .multiply(_qx.setFromAxisAngle(_axX, -me.pitch));
+    } else {
+      camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
+      /* three のカメラは自分の -Z を向くので、進行方向 (sin,cos) に合わせて 180 度ずらす */
+      camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
+    }
   } else {
     const dist = paint.open ? paint.dist : 2.3 * me.scale + 0.45;
     /* ふだんは背後の少し上から（机やいすの背もたれ越しに見えるように） */
