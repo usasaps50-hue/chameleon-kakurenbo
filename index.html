@@ -7,14 +7,37 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>カメレオンかくれんぼ</title>
 <style>
+/* 色はここにまとめてある。数字を直接書かないこと（あとで色を変えるとき総当たりになる） */
+:root{
+  --bg:#0e1015;          /* いちばん暗い背景 */
+  --sunk:#0f131b;        /* 入力欄など、沈んで見える面 */
+  --panel:#161a23;       /* カードの面 */
+  --panel2:#1b212d;      /* パネルの中のボタン */
+  --hud:#141924e6;       /* HUD のボタン */
+  --hudBox:#0d1017cc;    /* HUD の小さな箱 */
+  --btn:#232a38;         /* ふつうのボタン */
+  --line:#2a3244;        /* 枠線 */
+  --line2:#333c4f;       /* 明るめの枠線 */
+  --text:#eef1f7;
+  --sub:#9aa4bb;         /* 補助テキスト */
+  --dim:#7d879c;         /* さらに薄いテキスト */
+  --green:#7fd48a; --greenBg:#2b5a35; --greenLine:#4c9a5e;
+  --red:#ff9aa2;   --redBg:#3d1f22;   --redLine:#7a343c;
+  --amber:#ffd48a; --amberBg:#3a2a12ee; --amberLine:#c8922e;
+  --blue:#7fb0ff;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0e1015;color:#eef1f7;
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
 canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .hidden{display:none!important}
-button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+/* padding も消しておくこと。既定の左右 6px ぶん、丸ボタンの中身がせまくなる */
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
 input,select{font:inherit}
+/* キーボードで操作したとき、どこにいるか分かるように（既定の枠を消しているので自前で出す） */
+button:focus-visible,select:focus-visible,input:focus-visible{
+  outline:2px solid var(--green);outline-offset:2px}
 
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:#0e1015;z-index:99;
   font-size:15px;letter-spacing:.1em;color:#8d97ad}
@@ -24,48 +47,57 @@ input,select{font:inherit}
 .screen{position:absolute;inset:0;display:grid;place-items:center;padding:20px;
   padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));
   background:radial-gradient(120% 90% at 50% 0%,#1d2740 0%,#0e1015 70%);pointer-events:auto;overflow:auto}
-.card{width:min(430px,100%);background:#161a23;border:1px solid #262c3a;border-radius:20px;
+.card{width:min(430px,100%);background:var(--panel);border:1px solid #262c3a;border-radius:20px;
   padding:22px 20px;box-shadow:0 24px 60px #0009;text-align:center}
 .card h1{margin:2px 0 6px;font-size:30px;line-height:1.15}
-.card h1 span{color:#7fd48a}
+.card h1 span{color:var(--green)}
 .card h2{margin:0 0 8px;font-size:21px}
-.sub{margin:0 0 16px;font-size:13px;color:#9aa4bb;line-height:1.6}
+.sub{margin:0 0 16px;font-size:13px;color:var(--sub);line-height:1.6}
 .tiny{font-size:11px;color:#8892a8;line-height:1.6;margin:10px 0 0}
 .tiny.dim{color:#5c6478}
-.card label{display:block;text-align:left;font-size:12px;color:#9aa4bb;margin:12px 0 5px}
+.card label{display:block;text-align:left;font-size:12px;color:var(--sub);margin:12px 0 5px}
 #scCfg input{width:100%;padding:11px 13px;border-radius:11px;border:1px solid #2c3345;
-  background:#0f131b;color:#eef1f7;font-size:14px}
+  background:var(--sunk);color:var(--text);font-size:14px}
 button.big{display:block;width:100%;padding:14px;margin:9px 0;border-radius:13px;
-  background:#232a38;border:1px solid #333c4f;font-size:16px;font-weight:600;transition:.12s}
+  background:var(--btn);border:1px solid var(--line2);font-size:16px;font-weight:600;transition:.12s}
 button.big:active{transform:scale(.98);background:#2b3446}
+button.big:disabled{opacity:.45;cursor:not-allowed}
 button.primary{background:linear-gradient(180deg,#54c26a,#3da255);border-color:#63d47a;color:#06210d}
-button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underline}
+/* 目立たせたくないけれど、指で押せる大きさは要るボタン */
+button.big.ghost{background:none;border-color:#2a3140;color:var(--blue);font-size:14px;padding:11px}
+button.link{color:var(--blue);font-size:13px;margin-top:12px;text-decoration:underline;padding:8px}
 .row{display:flex;gap:10px;margin-top:16px}.row .big{margin:0}
 .joinrow{display:flex;gap:8px;margin:9px 0}
-.joinrow input{flex:1;padding:14px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;
+.joinrow input{flex:1;padding:14px;border-radius:13px;border:1px solid var(--line2);background:var(--sunk);
   color:#fff;font-size:19px;text-align:center;letter-spacing:.34em;font-weight:700;text-transform:uppercase}
-.joinrow button{padding:0 22px;border-radius:13px;background:#232a38;border:1px solid #333c4f;font-weight:600}
-#roomCode{font-size:42px;font-weight:800;letter-spacing:.22em;color:#7fd48a;margin:6px 0 2px}
+.joinrow button{padding:0 22px;border-radius:13px;background:var(--btn);border:1px solid var(--line2);font-weight:600}
+#roomCode{font-size:42px;font-weight:800;letter-spacing:.22em;color:var(--green);margin:6px 0 2px}
 #playerList,#resultList{display:flex;flex-direction:column;gap:6px;margin:14px 0;max-height:36vh;overflow:auto}
-.pl,.rr{display:flex;align-items:center;gap:9px;background:#0f131b;border:1px solid #242b3a;
+.pl,.rr{display:flex;align-items:center;gap:9px;background:var(--sunk);border:1px solid #242b3a;
   border-radius:11px;padding:9px 12px;font-size:14px;text-align:left}
 .pl .dot{width:10px;height:10px;border-radius:50%;flex:none}
 .pl .host{margin-left:auto;font-size:10px;color:#f0c04a;border:1px solid #6b5a1e;padding:2px 6px;border-radius:6px}
-.pl .me{margin-left:auto;font-size:10px;color:#7fd48a}
+.pl .me{margin-left:auto;font-size:10px;color:var(--green)}
 .rr canvas{width:22px;height:44px;border-radius:5px;background:#fff;flex:none}
 .rr .tagres{margin-left:auto;font-size:11px}
-.settingsGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0 4px}
-.settingsGrid label{margin:0;font-size:11px;text-align:center}
-.settingsGrid select{width:100%;margin-top:4px;padding:8px 4px;border-radius:9px;
-  background:#0f131b;color:#fff;border:1px solid #2c3345;font-size:13px;text-align:center}
+/* 6列。上の2つは3列ぶん、下の3つは2列ぶん使う（5項目が半端に余らないように） */
+.settingsGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:10px 0 4px}
+.settingsGrid label{margin:0;font-size:11px;text-align:center;grid-column:span 2}
+.settingsGrid label.wide{grid-column:span 3}
+.settingsGrid select{width:100%;margin-top:4px;padding:9px 6px;border-radius:9px;
+  background:var(--sunk);color:#fff;border:1px solid #2c3345;font-size:13px;text-align:center}
+.settingsGrid select:disabled{opacity:.5;cursor:not-allowed}
+/* タイトル画面のえらぶ欄 */
+select.pick{flex:1;min-width:0;padding:12px;border-radius:13px;border:1px solid var(--line2);
+  background:var(--sunk);color:#fff;font-size:14px}
 
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;z-index:20;pointer-events:none}
 #topbar{position:absolute;top:max(8px,env(safe-area-inset-top));left:0;right:0;
   display:flex;align-items:center;justify-content:center;gap:10px;padding:0 12px}
-#phaseBox{display:flex;align-items:baseline;gap:8px;background:#0d1017cc;border:1px solid #2a3244;
+#phaseBox{display:flex;align-items:baseline;gap:8px;background:var(--hudBox);border:1px solid var(--line);
   border-radius:12px;padding:6px 12px}
-#phaseName{font-size:11px;color:#9aa4bb}
+#phaseName{font-size:11px;color:var(--sub)}
 #phaseBox.reveal{background:#3a2a12ee;border-color:#c8922e}
 #phaseBox.reveal #phaseName{color:#ffd48a}
 #timer{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -73,7 +105,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .role-hider{background:#1d3b26;color:#8ee5a0;border:1px solid #2f6a41}
 .role-seeker{background:#3d1f22;color:#ff9aa2;border:1px solid #7a343c}
 .role-dead{background:#22262f;color:#8a94a8;border:1px solid #39404f}
-#countBox{font-size:12px;color:#9aa4bb;background:#0d1017cc;border:1px solid #2a3244;border-radius:12px;padding:6px 11px}
+#countBox{font-size:12px;color:var(--sub);background:var(--hudBox);border:1px solid var(--line);border-radius:12px;padding:6px 11px}
 #countBox b{color:#fff;font-size:15px}
 #crosshair{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px}
 #crosshair:before,#crosshair:after{content:"";position:absolute;background:#fff;opacity:.9;box-shadow:0 0 3px #000}
@@ -83,19 +115,20 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #crosshair.target:before,#crosshair.target:after{background:#ff5566}
 #radar{position:absolute;right:max(10px,env(safe-area-inset-right));
   top:calc(max(8px,env(safe-area-inset-top)) + 46px);width:96px;height:96px;
-  background:#0d1017cc;border:1px solid #2a3244;border-radius:14px}
-#toast{position:absolute;left:50%;top:16%;transform:translateX(-50%);font-size:14px;font-weight:600;
-  background:#0d1017e8;border:1px solid #2a3244;padding:9px 16px;border-radius:14px;
+  background:var(--hudBox);border:1px solid var(--line);border-radius:14px}
+/* top / left は placeCrosshair() が毎回入れなおす（ここに書いても効かない） */
+#toast{position:absolute;transform:translateX(-50%);font-size:14px;font-weight:600;
+  background:#0d1017e8;border:1px solid var(--line);padding:9px 16px;border-radius:14px;
   opacity:0;transition:opacity .25s;max-width:88vw;text-align:center}
 #toast.show{opacity:1}
 #poseTag.whistling{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
 #poseTag{position:absolute;left:max(12px,env(safe-area-inset-left));top:max(58px,calc(env(safe-area-inset-top) + 52px));
-  font-size:11px;color:#9aa4bb;background:#0d1017cc;border:1px solid #2a3244;border-radius:10px;padding:5px 10px}
+  font-size:11px;color:var(--sub);background:var(--hudBox);border:1px solid var(--line);border-radius:10px;padding:5px 10px}
 #posePick{position:absolute;right:78px;top:50%;transform:translateY(-50%);
   display:flex;flex-direction:column;gap:6px;pointer-events:auto;
-  background:#0d1017ee;border:1px solid #2a3244;border-radius:14px;padding:7px;
+  background:#0d1017ee;border:1px solid var(--line);border-radius:14px;padding:7px;
   box-shadow:0 10px 30px #0009;touch-action:none}
-#posePick button{display:flex;align-items:center;gap:8px;background:#1b212d;
+#posePick button{display:flex;align-items:center;gap:8px;background:var(--panel2);
   border:1px solid #2e3646;border-radius:10px;padding:8px 12px;font-size:13px;
   font-weight:600;white-space:nowrap;touch-action:none}
 #posePick button.on{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
@@ -106,9 +139,12 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
   transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;pointer-events:auto;
   /* 縦に入りきらないときは、左へもう1列ふやす（下の▲▼と重ならないように） */
   flex-wrap:wrap-reverse;align-content:flex-start}
-.rb{width:54px;height:54px;border-radius:16px;background:#141924e6;border:1px solid #2c3444;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:18px;line-height:1}
-.rb i{font-style:normal;font-size:9px;color:#9aa4bb}
+.rb{width:54px;height:54px;border-radius:16px;background:var(--hud);border:1px solid #2c3444;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:18px;line-height:1;
+  overflow:hidden}
+/* ラベルは1行に収める。ボタンの幅いっぱいを使わせないと4文字が切れる */
+.rb i{font-style:normal;font-size:9px;color:var(--sub);
+  white-space:nowrap;width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}
 .rb:active{background:#243046}
 .rb.small{width:40px;height:40px;font-size:14px}
 /* 退出ボタンは右上のすみへ。ほかのボタンから離しておく */
@@ -129,37 +165,29 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 .mv{position:absolute;width:62px;height:62px;border-radius:50%;background:#141924e6;border:1px solid #2c3444;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   font-size:19px;line-height:1;color:#cfd6e4;pointer-events:auto}
-.mv i{font-style:normal;font-size:9px;color:#9aa4bb}
+.mv i{font-style:normal;font-size:9px;color:var(--sub)}
 .mv.on{background:#2b5a35;border-color:#4c9a5e}
 #btnUp{right:max(20px,env(safe-area-inset-right));bottom:calc(max(30px,env(safe-area-inset-bottom)) + 74px)}
 #btnDown{right:max(20px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom))}
-#embedWarn{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 162px);
-  background:#3a2a12ee;border:1px solid #c8922e;color:#ffd48a;font-size:12.5px;font-weight:700;
-  padding:9px 16px;border-radius:12px;max-width:92vw;text-align:center;line-height:1.5}
-#embedWarn.danger{background:#3d1216ee;border-color:#e0435a;color:#ff9aa6}
-#freeBanner{position:absolute;left:50%;transform:translateX(-50%);
-  top:max(52px,calc(env(safe-area-inset-top) + 46px));
-  background:#123a2aee;border:1px solid #3f9a5e;color:#a8f0c4;font-size:12px;font-weight:700;
-  padding:7px 14px;border-radius:12px;max-width:92vw;text-align:center}
-#useTag{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 268px);
-  background:#123a2aee;border:1px solid #4fd07a;color:#b6f5cf;font-size:12.5px;font-weight:700;
-  padding:8px 15px;border-radius:12px;max-width:92vw;text-align:center}
-@media (min-width:761px) and (min-height:561px){ #useTag{bottom:112px} }
-#lockTag{position:absolute;left:50%;transform:translateX(-50%);
-  top:max(52px,calc(env(safe-area-inset-top) + 46px));
-  background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0;font-size:12px;font-weight:700;
-  padding:7px 14px;border-radius:12px;white-space:nowrap}
-#clingTag{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
-  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 268px);
-  background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff;font-size:12px;font-weight:700;
-  padding:6px 13px;border-radius:12px;white-space:nowrap}
-@media (min-width:761px) and (min-height:561px){ #clingTag{bottom:112px} }
+/* お知らせは「積む」。前は同じ場所に重ねて置いていたので、
+   乗り物のそばで壁にくっつくと文字が重なって読めなかった */
+#topNotes,#botNotes{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  pointer-events:none;max-width:92vw}
+#topNotes{top:max(52px,calc(env(safe-area-inset-top) + 46px))}
+#botNotes{flex-direction:column-reverse;
+  bottom:calc(max(30px,env(safe-area-inset-bottom)) + 162px)}
+.note{font-size:12.5px;font-weight:700;padding:8px 15px;border-radius:12px;
+  text-align:center;line-height:1.5;max-width:100%}
+.note.warn{background:var(--amberBg);border:1px solid var(--amberLine);color:var(--amber)}
+.note.danger{background:#3d1216ee;border:1px solid #e0435a;color:#ff9aa6}
+.note.ok{background:#123a2aee;border:1px solid #4fd07a;color:#b6f5cf}
+.note.info{background:#0e2c44ee;border:1px solid #4a8fc0;color:#a9dcff}
+.note.lock{background:#3a1230ee;border:1px solid #c04a90;color:#ffb4e0}
 #diag{position:absolute;left:8px;top:8px;z-index:60;background:#000000cc;color:#8ef0a8;
   font:11px/1.5 ui-monospace,monospace;padding:8px 10px;border-radius:8px;white-space:pre;
   pointer-events:none;max-width:70vw}
-@media (min-width:761px) and (min-height:561px){ #embedWarn{bottom:26px} }
+@media (min-width:761px) and (min-height:561px){ #botNotes{bottom:26px} }
 #btnTag{position:absolute;left:50%;transform:translateX(-50%);bottom:max(30px,env(safe-area-inset-bottom));
   padding:14px 26px;border-radius:16px;background:#8e2b34;border:1px solid #c4434f;
   font-weight:800;font-size:15px;pointer-events:auto}
@@ -169,13 +197,13 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 /* ---------- paint（右側の色パネル） ---------- */
 #paint{position:fixed;top:0;right:0;bottom:0;z-index:30;display:flex;align-items:center;
   pointer-events:none;padding:8px max(8px,env(safe-area-inset-right)) 8px 0}
-#paintInner{width:186px;max-height:100%;overflow:auto;background:#12161ff2;border:1px solid #2a3244;
+#paintInner{width:186px;max-height:100%;overflow:auto;background:#12161ff2;border:1px solid var(--line);
   border-radius:16px;box-shadow:0 12px 40px #0009;pointer-events:auto;padding:10px;
   display:flex;flex-direction:column;gap:7px}
 .pHead{display:flex;align-items:center;gap:8px}
 .pHead b{font-size:13px;flex:1}
-#paintClose{background:#232a38;border:1px solid #333c4f;border-radius:9px;padding:5px 10px;font-size:11.5px}
-.pBtn{background:#1b212d;border:1px solid #2e3646;border-radius:10px;padding:9px 8px;
+#paintClose{background:var(--btn);border:1px solid var(--line2);border-radius:9px;padding:5px 10px;font-size:11.5px}
+.pBtn{background:var(--panel2);border:1px solid #2e3646;border-radius:10px;padding:9px 8px;
   font-size:12.5px;font-weight:600;text-align:center}
 .pBtn:active{background:#2b3446}
 .pBtn.pick{background:#3a3320;border-color:#6b5c2a;color:#ffd166;font-size:13.5px;padding:11px 8px}
@@ -186,18 +214,18 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 #swatches{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .sw{width:100%;aspect-ratio:1;border-radius:6px;border:1.5px solid #ffffff22}
 .sw.active{border-color:#fff;box-shadow:0 0 0 1px #000}
-.pRow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#9aa4bb}
+.pRow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--sub)}
 .pRow.btns{gap:5px}
 .pRow.btns .tool,.pRow.btns .pBtn{flex:1;padding:8px 4px;font-size:11.5px}
 .pRow.zoomrow .pBtn{flex:1;padding:8px 4px;font-size:14px;font-weight:700}
-.tool{background:#1b212d;border:1px solid #2e3646;border-radius:10px;padding:8px;font-size:11.5px;font-weight:600}
+.tool{background:var(--panel2);border:1px solid #2e3646;border-radius:10px;padding:8px;font-size:11.5px;font-weight:600}
 .tool.active{background:#2b5a35;border-color:#4c9a5e;color:#c9f5d2}
-#colorInput{flex:1;height:30px;padding:0;border:1px solid #2e3646;border-radius:9px;background:#1b212d}
+#colorInput{flex:1;height:30px;padding:0;border:1px solid #2e3646;border-radius:9px;background:var(--panel2)}
 #brushSize{flex:1;min-width:40px;accent-color:#54c26a}
-#brushPreview{width:36px;height:36px;border-radius:9px;background:#0f131b;border:1px solid #2c3444;
+#brushPreview{width:36px;height:36px;border-radius:9px;background:var(--sunk);border:1px solid #2c3444;
   display:grid;place-items:center;flex:none}
 #brushDot{border-radius:50%}
-.pHint{font-size:10.5px;color:#7d879c;line-height:1.5}
+.pHint{font-size:10.5px;color:var(--dim);line-height:1.5}
 
 /* せまい画面はボタンを小さく。よこ持ちは幅が広いので、高さでも判定する */
 @media (max-width:760px), (max-height:560px){
@@ -243,13 +271,11 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     top:calc(max(6px,env(safe-area-inset-top)) + 40px)}
   #poseTag{left:calc(max(10px,env(safe-area-inset-left)) + 82px);
     top:calc(max(6px,env(safe-area-inset-top)) + 40px)}
-  #embedWarn{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px);
-    font-size:11.5px;padding:7px 13px;max-width:52vw;line-height:1.4}
-  #useTag,#clingTag{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 142px);
-    font-size:11.5px;padding:6px 12px;max-width:52vw}
+  #botNotes{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px);max-width:52vw;gap:4px}
+  .note{font-size:11.5px;padding:6px 12px;line-height:1.4}
   #posePick{right:56px;top:auto;bottom:calc(env(safe-area-inset-bottom) + 126px);transform:none}
 }
-@media (min-width:761px) and (min-height:561px){ #btnTag{display:none} #embedWarn{bottom:26px} }
+@media (min-width:761px) and (min-height:561px){ #btnTag{display:none} }
 </style>
 </head>
 <body>
@@ -259,7 +285,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
 <div id="hud" class="hidden">
   <div id="topbar">
     <div id="phaseBox"><span id="phaseName">じゅんび</span><span id="timer">0:00</span></div>
-    <div id="roleBadge" class="role-hider">かくれる</div>
+    <div id="roleBadge" class="role-hider">&nbsp;</div>
     <div id="countBox">残り <b id="aliveCount">0</b></div>
   </div>
   <div id="crosshair"></div>
@@ -270,7 +296,7 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnPaint" class="rb">🎨<i>ぬる</i></button>
     <button id="btnPose"  class="rb">🧍<i>ポーズ</i></button>
     <div id="posePick" class="hidden"></div>
-    <button id="btnFree"  class="rb">🎥<i>フリーカメラ</i></button>
+    <button id="btnFree"  class="rb" title="フリーカメラ">🎥<i>カメラ</i></button>
     <button id="btnClone" class="rb">👥<i>ぶんしん</i></button>
     <button id="btnBoard" class="rb hidden">🎟️<i>のる</i></button>
     <button id="btnRole"  class="rb hidden">👹<i>鬼になる</i></button>
@@ -283,11 +309,15 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
     <button id="btnDown" class="mv">▼<i>さがる</i></button>
     <button id="btnTag">みつけた!</button>
   </div>
-  <div id="useTag" class="hidden"></div>
-  <div id="lockTag" class="hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
-  <div id="clingTag" class="hidden">🧲 くっついています — このまま止まれます（Shift／▼で はなれる）</div>
-  <div id="embedWarn" class="hidden"></div>
-  <div id="freeBanner" class="hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
+  <div id="topNotes">
+    <div id="freeBanner" class="note ok hidden">🎥 フリーカメラ中 — 自分はその場に残っています（もう一度 🎥 で解除）</div>
+    <div id="lockTag" class="note lock hidden">🖱 マウス固定中 — Shift または Esc でもどる</div>
+  </div>
+  <div id="botNotes">
+    <div id="embedWarn" class="note warn hidden"></div>
+    <div id="clingTag" class="note info hidden">🧲 くっついています — このまま止まれます（Shift／▼で はなれる）</div>
+    <div id="useTag" class="note ok hidden"></div>
+  </div>
   <div id="diag" class="hidden"></div>
 </div>
 
@@ -334,8 +364,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <h1>カメレオン<br><span>かくれんぼ</span></h1>
       <p class="sub">まっ白な体に絵をかいて、背景に溶けこめ。</p>
       <div class="joinrow" style="margin-bottom:4px">
-        <select id="soloMap" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px"></select>
-        <select id="soloRule" style="flex:1;padding:12px;border-radius:13px;border:1px solid #333c4f;background:#0f131b;color:#fff;font-size:14px">
+        <select id="soloMap" class="pick"></select>
+        <select id="soloRule" class="pick">
           <option value="hide">かくれんぼ</option>
           <option value="oni">隠れ鬼</option>
         </select>
@@ -343,10 +373,10 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <button class="big primary" id="btnSolo">ひとりで練習（お絵かき）</button>
       <button class="big" id="btnCreate">部屋をつくる</button>
       <div class="joinrow">
-        <input id="joinCode" placeholder="部屋コード" maxlength="4" autocomplete="off" autocapitalize="characters">
+        <input id="joinCode" placeholder="コード" maxlength="4" autocomplete="off" autocapitalize="characters">
         <button id="btnJoin">入る</button>
       </div>
-      <button class="link" id="btnCfg">⚙ オンライン設定</button>
+      <button class="big ghost" id="btnCfg">⚙ オンライン設定</button>
       <p class="tiny" id="netState">オンライン: 未設定</p>
       <p class="tiny dim">Steam『めっちゃカメレオン』(LEMORION) に着想を得た非公式のファン再現です。公式とは無関係で、絵・モデル・コードはすべて独自のものです。</p>
     </div>
@@ -374,8 +404,8 @@ button.link{color:#7fb0ff;font-size:13px;margin-top:12px;text-decoration:underli
       <p class="sub">このコードを友だちに伝えてね</p>
       <div id="playerList"></div>
       <div class="settingsGrid" id="hostSettings">
-        <label>あそびかた<select id="setRule"><option value="hide">かくれんぼ</option><option value="oni">隠れ鬼</option></select></label>
-        <label>マップ<select id="setMap"></select></label>
+        <label class="wide">あそびかた<select id="setRule"><option value="hide">かくれんぼ</option><option value="oni">隠れ鬼</option></select></label>
+        <label class="wide">マップ<select id="setMap"></select></label>
         <label>鬼の人数<select id="setSeekers"><option>1</option><option>2</option><option>3</option></select></label>
         <label>じゅんび<select id="setPrep"><option value="45">45秒</option><option value="60" selected>60秒</option><option value="90">90秒</option><option value="120">120秒</option></select></label>
         <label>さがす<select id="setHunt"><option value="120">2分</option><option value="180" selected>3分</option><option value="240">4分</option></select></label>
@@ -435,8 +465,7 @@ const isWide  = function () { return innerWidth > 760; };
 const ARENA = 72, HALF = ARENA / 2, WALL_H = 9;
 const PLAYER_R = 0.34;
 const EMBED_DEPTH = 0.26;
-const EMBED_SAFE = 0.07;
-/* 1歩の刻み。EMBED_SAFE より大きいと、押し戻す前に薄い壁を飛びこえてしまう */
+/* 1歩の刻み。沈める量はここぶんの余白を必ず残すので、これより大きくすると薄い壁を飛びこえる */
 const SUBSTEP = 0.04;
 /* このすきま以内なら「くっついた」とみなして、空中でもその高さで止まれる */
 const CLING_GAP = 0.28;
@@ -1462,6 +1491,10 @@ function buildSchool() {
     [-30, 16], [-6, 16], [14, 16], [30, 16],
     [-28, 24], [-20, 30], [-8, 28], [8, 22], [16, 30], [26, 22], [33, 32]
   ];
+  /* 空とライトは明示しておく（書かないと、前のマップの設定がそのまま残る） */
+  scene.background = new THREE.Color('#9ec8e8');
+  scene.fog = new THREE.Fog('#9ec8e8', 70, 170);
+  amb.intensity = 0.86; sun.intensity = 0.24;
   return spawns;
 }
 
@@ -2385,13 +2418,16 @@ function buildAmusement() {
     rides.push({
       name: 'かいてんもくば',
       boardZone: { x: cx, z: cz + 7.4, r: 4.2, y: 1.3 },
+      exitAt: { x: cx, y: 1.3, z: cz + 7.4 },        /* 降りたら乗り場へ */
       seats: seats,
       step: function (dt, on) {
         if (on) rot += dt * 0.42;
         spin.rotation.y = rot;
         for (let i = 0; i < horses.length; i++) {
           const h = horses[i];
-          const bob = on ? Math.sin(rot * 3 + i * 1.05) * 0.34 : 0;
+          /* rot は止めると進まないので、上下も自然に止まる。
+             ここで 0 に戻すと、木馬の上に立っていた人が落ちる */
+          const bob = Math.sin(rot * 3 + i * 1.05) * 0.34;
           h.g.position.y = bob;
           const a = h.a + rot;
           const hx = cx + Math.cos(a) * 3.6, hz = cz + Math.sin(a) * 3.6;
@@ -2471,6 +2507,7 @@ function buildAmusement() {
     rides.push({
       name: 'かんらんしゃ',
       boardZone: { x: cx, z: cz + 9.5, r: 4.6, y: 1.2 },
+      exitAt: { x: cx, y: 1.2, z: cz + 9.5 },        /* てっぺんで降りると落ちるので乗り場へ */
       seats: seats,
       step: function (dt, on) {
         if (on) rot += dt * 0.17;
@@ -2543,7 +2580,10 @@ function buildAmusement() {
     const curve = new THREE.CatmullRomCurve3(P, true, 'catmullrom', 0.5);
     const LEN = curve.getLength();
     const SEGN = 460;
-    const pts = curve.getPoints(SEGN);
+    /* ※ getPoints は「曲線パラメータ」等間隔、computeFrenetFrames は「長さ」等間隔。
+       混ぜると点と枠の対応が最大11m ずれてレールがねじれるので、
+       点のほうを getSpacedPoints（＝長さ等間隔）にそろえること */
+    const pts = curve.getSpacedPoints(SEGN);
     const fr = curve.computeFrenetFrames(SEGN, true);
     /* three の枠は「ねじれが最小になる向き」でつながっているので、
        駅のところで上を向いている側をえらべば、たて回転でも自然に一回転する */
@@ -2564,8 +2604,10 @@ function buildAmusement() {
     }
 
     /* --- レール2本・まくらぎ・けた --- */
+    /* ※ i < SEGN。閉じた曲線なので最後の点は最初の点と同じで、
+       両方入れると長さ0のつなぎ目ができてチューブが乱れる */
     const railL = [], railR = [];
-    for (let i = 0; i <= SEGN; i++) {
+    for (let i = 0; i < SEGN; i++) {
       railL.push(pts[i].clone().addScaledVector(SIDE[i], 0.78));
       railR.push(pts[i].clone().addScaledVector(SIDE[i], -0.78));
     }
@@ -2574,7 +2616,7 @@ function buildAmusement() {
       group.add(new THREE.Mesh(new THREE.TubeGeometry(c2, SEGN, 0.15, 6, true), mat('#e0455a')));
     }
     const spine = [];
-    for (let i = 0; i <= SEGN; i++) spine.push(pts[i].clone().addScaledVector(UP[i], -0.52));
+    for (let i = 0; i < SEGN; i++) spine.push(pts[i].clone().addScaledVector(UP[i], -0.52));
     group.add(new THREE.Mesh(new THREE.TubeGeometry(
       new THREE.CatmullRomCurve3(spine, true, 'catmullrom', 0.5), SEGN, 0.26, 6, true), mat('#4a8fd0')));
     const tieGeo = new THREE.BoxGeometry(0.14, 0.62, 1.86);
@@ -2646,35 +2688,86 @@ function buildAmusement() {
         w.rotation.x = Math.PI / 2; w.position.set(wx, 0.1, wz); g2.add(w);
       }
       cars.push(g2);
-      seats.push({ pos: new THREE.Vector3(), yaw: 0, name: (i + 1) + '両目' });
+      /* q = 座席の向き（たて回転でも壊れないよう、角度ではなく回転そのもので持つ）
+         up = 座席の「上」。逆さのときは下を向くので、カメラの高さはこっちに足す */
+      seats.push({ pos: new THREE.Vector3(), yaw: 0, name: (i + 1) + '両目',
+        q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0) });
     }
-    const carSol = addSolid(ST[0], ZB, 2.4, 2.4, 1, 0, 0);
+    /* 当たり判定は車両ごと。走っているあいだは全部どかす */
+    const carSols = [];
+    for (let i = 0; i < CARS; i++) carSols.push(addSolid(ST[0], ZB, 2.4, 1.9, -1, 0, 9999));
 
-    let u = 0, v = 6, yTop = 19.4;
-    const m4 = new THREE.Matrix4(), tmpT = new THREE.Vector3(), tmpP = new THREE.Vector3();
-    /* 駅にとまっている u をさがしておく（止めたときはここに戻す） */
+    const m4 = new THREE.Matrix4(), m4c = new THREE.Matrix4();
+    const tmpT = new THREE.Vector3(), tmpP = new THREE.Vector3(), tmpB = new THREE.Vector3();
+    /* 駅にとまっている u をさがしておく。ここが一周の起点になる */
     let uStation = 0;
     {
       let best = 1e9;
-      for (let i = 0; i <= 200; i++) {
-        const p = curve.getPointAt(i / 200);
+      for (let i = 0; i <= 400; i++) {
+        const p = curve.getPointAt(i / 400);
         const d = Math.hypot(p.x - ST[0], p.z - ZB);
-        if (d < best && p.y < 5) { best = d; uStation = i / 200; }
+        if (d < best && p.y < 5) { best = d; uStation = i / 400; }
       }
-      u = uStation;
     }
+    /* 巻きあげの てっぺん が一周のどこかも見ておく（そこまではチェーンでゆっくり登る） */
+    let sTop = 0.25, yTop = 19.4;
+    {
+      let hi = -1e9;
+      for (let i = 0; i <= 400; i++) {
+        const s0 = i / 400;
+        const y = curve.getPointAt((uStation + s0) % 1).y;
+        if (y > hi) { hi = y; sTop = s0; }
+      }
+      yTop = hi;
+    }
+    const S_BRAKE = 1 - 14 / LEN;      /* 最後の14mはブレーキ区間 */
+    let s = 0;                         /* 駅からの進みぐあい 0..1 */
+    let v = 0;                         /* いまの速さ m/s */
+    let waitT = 0;                     /* 駅での停車時間 */
+    let running = false;               /* 走り出したら、一周するまでは止まらない */
+    let sWant = -1;                    /* ネット同期で寄せたい位置（-1 なら無し） */
     rides.push({
       name: 'ジェットコースター',
       boardZone: { x: ST[0], z: ZB + 2.6, r: 7.5, y: 2.6 },
       exitAt: { x: ST[0], y: 2.6, z: ZB + 2.6 },       /* 降りたら駅にもどす */
       seats: seats,
+      /* 駅にとまっているときだけ乗れる（走っている車両に瞬間移動できてしまうので） */
+      canBoard: function () { return !running; },
+      getU: function () { return s; },
+      setU: function (t) { sWant = t; },
       step: function (dt, on) {
-        if (on) {
-          /* 高いところではおそく、低いところでは速く（位置エネルギー→速さ） */
-          const y = curve.getPointAt(u).y;
-          v = Math.max(4.0, Math.sqrt(Math.max(1, 2 * 14 * (yTop + 0.4 - y))));
-          u = (u + v * dt / LEN) % 1;
+        /* --- 走らせる --- */
+        if (!running) {
+          if (on) {
+            waitT += dt;
+            if (waitT > 1.5) { running = true; waitT = 0; playWhistle(0, 0.28); }   /* 発車ベル */
+          } else waitT = 0;
         }
+        if (running) {
+          if (s < sTop) {
+            v = 3.2;                                   /* 巻きあげ。チェーンでゆっくり登る */
+          } else if (s > S_BRAKE) {
+            const k = (1 - s) / (1 - S_BRAKE);         /* 駅の手前でブレーキ */
+            v = Math.max(1.2, 18 * k);
+          } else {
+            /* 高いところではおそく、低いところでは速く（位置エネルギー→速さ） */
+            const y = curve.getPointAt((uStation + s) % 1).y;
+            v = Math.max(4.0, Math.sqrt(Math.max(1, 2 * 14 * (yTop + 0.4 - y))));
+          }
+          s += v * dt / LEN;
+          if (s >= 1) { s = 0; v = 0; running = false; waitT = 0; }   /* 駅にもどって停車 */
+        }
+        /* ホストからの位置に、少しずつ寄せる（いきなり飛ぶと見た目が壊れる） */
+        if (sWant >= 0) {
+          let d = sWant - s;
+          if (d > 0.5) d -= 1; else if (d < -0.5) d += 1;
+          if (Math.abs(d) < 0.004) { s = sWant; sWant = -1; }
+          else s = (s + d * Math.min(1, dt / 0.3) + 1) % 1;
+          if (s > 0) running = true;
+        }
+
+        /* --- 車両と座席 --- */
+        const u = (uStation + s) % 1;
         for (let i = 0; i < CARS; i++) {
           const cu = ((u - i * CARGAP / LEN) % 1 + 1) % 1;
           curve.getPointAt(cu, tmpP);
@@ -2683,17 +2776,26 @@ function buildAmusement() {
           m4.makeBasis(tmpT, f.up, f.side);
           m4.setPosition(tmpP.x + f.up.x * 0.55, tmpP.y + f.up.y * 0.55, tmpP.z + f.up.z * 0.55);
           cars[i].matrix.copy(m4);
-          seats[i].pos.set(tmpP.x + f.up.x * 1.05, tmpP.y + f.up.y * 1.05, tmpP.z + f.up.z * 1.05);
-          seats[i].yaw = Math.atan2(tmpT.x, tmpT.z);
-          seats[i].upY = f.up.y;
+          const st = seats[i];
+          st.pos.set(tmpP.x + f.up.x * 1.05, tmpP.y + f.up.y * 1.05, tmpP.z + f.up.z * 1.05);
+          st.up.copy(f.up);
+          /* 座席の向き。カメラは自分の -Z を向くので、進む向きの逆を z 軸にする */
+          tmpB.copy(tmpT).negate();
+          m4c.makeBasis(f.side, f.up, tmpB);
+          st.q.setFromRotationMatrix(m4c);
+          /* 真上・真下を向いているときの atan2 は暴れるので、そのときは前の向きを保つ */
+          if (Math.hypot(tmpT.x, tmpT.z) > 0.2) st.yaw = Math.atan2(tmpT.x, tmpT.z);
         }
-        /* 走っているあいだは車両の当たり判定をどけておく（はね飛ばされないように） */
-        if (on) { carSol.y0 = 9999; }
-        else {
-          const p = seats[0].pos;
-          carSol.x0 = p.x - 3.6; carSol.x1 = p.x + 3.6;
-          carSol.z0 = p.z - 3.6; carSol.z1 = p.z + 3.6;
-          carSol.y0 = p.y - 1.0; carSol.top = p.y - 0.05;
+
+        /* --- 当たり判定。走っているあいだは全部どかす --- */
+        for (let i = 0; i < CARS; i++) {
+          const sol = carSols[i], p = seats[i].pos;
+          if (running) { sol.y0 = 9999; sol.top = -1; continue; }   /* top も戻さないと幽霊の床が残る */
+          const c = Math.abs(Math.cos(seats[i].yaw)), sn = Math.abs(Math.sin(seats[i].yaw));
+          const ex = sn * 1.2 + c * 0.95, ez = c * 1.2 + sn * 0.95;
+          sol.x0 = p.x - ex; sol.x1 = p.x + ex;
+          sol.z0 = p.z - ez; sol.z1 = p.z + ez;
+          sol.y0 = p.y - 1.1; sol.top = p.y - 0.05;
         }
       }
     });
@@ -2905,16 +3007,423 @@ function buildAmusement() {
 
   const spawns = [
     [0, 20], [-8, 16], [8, 16], [-16, 10], [16, 10], [0, 8], [-6, 4], [6, 4],
-    [-20, 2], [20, 2], [-10, -4], [10, -4], [0, -12], [-14, -14], [14, -14],
+    [-24, 2], [20, 2], [-10, -4], [10, -4], [0, -12], [-14, -14], [14, -14],
     [-24, 16], [24, 16], [-24, -18], [24, -22], [4, -26], [-4, -26], [26, 26], [-26, 26]
   ];
   return spawns;
 }
 
 /* =====================================================================
+   マップ：かくれんぼ屋敷
+   原作の定番マップ。家具・絵画・本棚・柱が多くて、
+   「平らで塗りやすい面」と「人型のシルエットを崩せる物」をたくさん置いてある。
+   低い すきま はポーズと連動していて、しゃがむ・丸まると入れる場所がある。
+===================================================================== */
+/** 壁紙。上半分が模様、下半分が腰板（こしいた） */
+function wallpaperTex(base, patt, wain) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    /* ダマスク風のひし形をならべる */
+    g.strokeStyle = patt; g.lineWidth = 2;
+    for (let y = 0; y < 170; y += 34) {
+      for (let x = 0; x < w; x += 34) {
+        const ox = (y / 34) % 2 ? 17 : 0;
+        g.beginPath();
+        g.moveTo(x + ox, y + 6); g.lineTo(x + ox + 13, y + 17);
+        g.lineTo(x + ox, y + 28); g.lineTo(x + ox - 13, y + 17);
+        g.closePath(); g.stroke();
+      }
+    }
+    g.fillStyle = wain; g.fillRect(0, 176, w, h - 176);      /* 腰板 */
+    g.fillStyle = '#00000022'; g.fillRect(0, 176, w, 5);
+    g.strokeStyle = '#00000018'; g.lineWidth = 2;
+    for (let x = 0; x < w; x += 42) { g.beginPath(); g.moveTo(x, 184); g.lineTo(x, h); g.stroke(); }
+  }, 1, 1);
+}
+/** 寄せ木の床 */
+function parquetTex() {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = '#8a5c34'; g.fillRect(0, 0, w, h);
+    const C = ['#96663a', '#83552f', '#9c6d40', '#8d5d33'];
+    for (let y = 0; y < h; y += 64) {
+      for (let x = 0; x < w; x += 64) {
+        const v = ((x / 64) + (y / 64)) % 2;
+        for (let i = 0; i < 4; i++) {
+          g.fillStyle = C[(i + x / 64 + y / 64) % 4];
+          if (v) g.fillRect(x + 1, y + i * 16 + 1, 62, 14);
+          else g.fillRect(x + i * 16 + 1, y + 1, 14, 62);
+        }
+      }
+    }
+  }, 1, 1);
+}
+/** 浴室のタイル */
+function tileTex(a, b) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = b; g.fillRect(0, 0, w, h);
+    g.fillStyle = a;
+    for (let y = 0; y < h; y += 32) for (let x = 0; x < w; x += 32) g.fillRect(x + 2, y + 2, 28, 28);
+  }, 1, 1);
+}
+/** 絵画（額ぶち入り）。中身は抽象画なので、そのまま体に塗ってもごまかせる */
+function paintingTex(seed) {
+  const r = makeRng(seed);
+  return canvasTex(192, 152, function (g, w, h) {
+    g.fillStyle = '#7a5a2e'; g.fillRect(0, 0, w, h);            /* 額 */
+    g.fillStyle = '#caa964'; g.fillRect(6, 6, w - 12, h - 12);  /* 額の内がわ */
+    const sky = ['#5e86b8', '#8fa8c4', '#c8b48a', '#6d7f5a'][Math.floor(r() * 4)];
+    g.fillStyle = sky; g.fillRect(14, 14, w - 28, h - 28);
+    /* 丘や木のようなもの */
+    for (let i = 0; i < 5; i++) {
+      g.fillStyle = ['#4a6b42', '#3b5636', '#7d6a44', '#2f4a35'][Math.floor(r() * 4)];
+      g.beginPath();
+      const cx = 14 + r() * (w - 28), cy = h - 26 - r() * 30;
+      g.moveTo(cx - 30 - r() * 20, h - 14);
+      g.lineTo(cx, cy);
+      g.lineTo(cx + 30 + r() * 20, h - 14);
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = '#00000022'; g.fillRect(14, 14, w - 28, 8);
+  });
+}
+/** 台所の戸だな */
+function cabinetTex() {
+  return canvasTex(256, 128, function (g, w, h) {
+    g.fillStyle = '#d8cbb2'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#a08e6e'; g.lineWidth = 3;
+    for (let x = 0; x < w; x += 64) {
+      g.strokeRect(x + 5, 6, 54, h - 12);
+      g.fillStyle = '#8e7d5e'; g.fillRect(x + 28, h / 2 - 8, 8, 16);   /* 取っ手 */
+      g.fillStyle = '#d8cbb2';
+    }
+  }, 1, 1);
+}
+/** じゅうたん */
+function rugTex(a, b) {
+  return canvasTex(256, 256, function (g, w, h) {
+    g.fillStyle = a; g.fillRect(0, 0, w, h);
+    g.strokeStyle = b; g.lineWidth = 8;
+    g.strokeRect(16, 16, w - 32, h - 32);
+    g.strokeRect(40, 40, w - 80, h - 80);
+    g.lineWidth = 4;
+    for (let i = 0; i < 6; i++) {
+      g.beginPath();
+      g.arc(w / 2, h / 2, 20 + i * 12, 0, Math.PI * 2);
+      g.stroke();
+    }
+  }, 1, 1);
+}
+
+function buildMansion() {
+  const HW = 30, WH = 6.6;                  /* 家のはんぶんの幅・壁の高さ */
+  const WP = wallpaperTex('#e8ded0', '#cbb99c', '#8b6a48');    /* ふつうの壁紙 */
+  const WP2 = wallpaperTex('#d6e2df', '#aec4c0', '#5c6b6a');   /* 青みの壁紙 */
+  const WP3 = wallpaperTex('#efe0d6', '#d9bda6', '#94674a');   /* 赤みの壁紙 */
+  const FLOOR = parquetTex();
+  const TILE = tileTex('#dfe8ec', '#b4c4cc');
+  const CAB = cabinetTex();
+  const RUG1 = rugTex('#7a3038', '#d8b878'), RUG2 = rugTex('#2f4a5e', '#c9b088');
+
+  scene.background = new THREE.Color('#171319');
+  scene.fog = new THREE.Fog('#171319', 40, 110);
+  amb.intensity = 0.88; sun.intensity = 0.20;
+
+  /* ---------- 床と天井 ---------- */
+  floorAt(-HW, -HW, HW, HW, FLOOR, 5);
+  /* 天井（当たり判定なし。浮ける高さ 5.6 でつかえる） */
+  flat(0, 5.9, 0, HW * 2, HW * 2, 0, Math.PI / 2, '#efe9dd');
+
+  /* ---------- 外まわりの壁 ---------- */
+  wall(0, -HW, HW * 2, 0, WP, WH);
+  wall(0, HW, HW * 2, 0, WP, WH);
+  wall(-HW, 0, HW * 2, Math.PI / 2, WP, WH);
+  wall(HW, 0, HW * 2, Math.PI / 2, WP, WH);
+
+  return mansionRooms(WP, WP2, WP3, FLOOR, TILE, CAB, RUG1, RUG2);
+}
+
+/* ---------- 屋敷の道具 ---------- */
+/** 柱。ホールにずらっと立てる。裏にぴったり張りつける太さにしてある */
+function pillar(x, z) {
+  box(x, 0, z, 1.15, 4.6, 1.15, '#e2d8c6');
+  box(x, 4.6, z, 1.45, 0.35, 1.45, '#d2c6b0');       /* 上のかざり */
+  box(x, 0, z, 1.45, 0.3, 1.45, '#d2c6b0', 0, true); /* 足もと（判定は柱ぶんで足りる） */
+}
+/** 絵画。壁にかける。ry は壁の向き */
+function painting(x, y, z, ry, seed, w) {
+  w = w || 1.6;
+  flat(x, y, z, w, w * 0.79, ry, 0, paintingTex(seed));
+}
+/** 本だな（屋敷むけ。学校のより背が高い） */
+function shelfTall(x, z, ry, w) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, w, 0.1, 0.9, '#5c4126');
+  part(g, -w / 2 + 0.06, 0, 0, 0.12, 3.0, 0.9, '#6b4c2c');
+  part(g, w / 2 - 0.06, 0, 0, 0.12, 3.0, 0.9, '#6b4c2c');
+  part(g, 0, 2.9, 0, w, 0.16, 1.0, '#6b4c2c');
+  for (let i = 0; i < 5; i++) {
+    part(g, 0, 0.5 + i * 0.55, 0, w - 0.2, 0.07, 0.86, '#6b4c2c');
+    /* 本は「ひとかたまり」で置く。1冊ずつ板にすると本だな1つで200枚を超えて、
+       スマホでは重くなる。少し離れれば見た目はほとんど変わらない */
+    let x = -w / 2 + 0.15;
+    for (let k = 0; k < 6 && x < w / 2 - 0.25; k++) {
+      const bw = Math.min(0.5 + ((i * 3 + k * 5) % 4) * 0.18, w / 2 - 0.15 - x);
+      const c = ['#8e3b3b', '#3b5e8e', '#3e7a4c', '#8a7430', '#6b3b7a', '#a05a2c'][(i * 7 + k * 3) % 6];
+      part(g, x + bw / 2, 0.57 + i * 0.55, 0.02, bw, 0.34 + (k % 3) * 0.06, 0.62, c);
+      x += bw + 0.04;
+    }
+  }
+  addSolid(x, z, w, 0.95, 3.06, ry);
+}
+/** ベッド。下に すきま があって、しゃがむと入れる（鬼は体が大きくて入れない） */
+function bed(x, z, ry) {
+  const g = furn(x, z, ry);
+  for (const sx of [-1.0, 1.0]) for (const sz of [-1.9, 1.9]) {
+    part(g, sx, 0, sz, 0.16, 3.2, 0.16, '#5c4126');            /* 天がい柱 */
+  }
+  part(g, 0, 3.1, 0, 2.3, 0.18, 4.1, '#6b4c2c');               /* 天がい */
+  part(g, 0, 1.05, 0, 2.16, 0.34, 3.96, '#efe6d8');            /* マットレス */
+  part(g, 0, 1.39, -1.2, 2.0, 0.16, 1.4, '#c4d4e2');           /* かけぶとん */
+  part(g, 0, 1.39, 1.3, 1.4, 0.2, 0.5, '#fff');                /* まくら */
+  part(g, 0, 1.39, 1.55, 2.2, 0.14, 0.5, '#e8dcc8');
+  /* 判定：下端 1.05 なので、しゃがみ(0.98)なら もぐれる。立つ(1.39)では入れない */
+  addSolid(x, z, 2.3, 4.1, 1.73, ry, 1.05);
+  addSolid(x, z, 2.3, 4.1, 3.28, ry, 3.1);                     /* 天がいの上にも乗れる */
+}
+/** 洋だんす。中に入れる（前があいている） */
+function wardrobe(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, -1.05, 0, 0, 0.16, 3.1, 1.1, '#6b4c2c');
+  part(g, 1.05, 0, 0, 0.16, 3.1, 1.1, '#6b4c2c');
+  part(g, 0, 0, -0.5, 2.26, 3.1, 0.16, '#5c4126');
+  part(g, 0, 3.0, 0, 2.4, 0.2, 1.25, '#6b4c2c');
+  part(g, 0, 0, 0, 2.26, 0.14, 1.1, '#5c4126');
+  part(g, 0, 2.3, 0, 2.0, 0.08, 0.9, '#4e3720');               /* ハンガーの棒 */
+  for (let i = 0; i < 5; i++) {                                 /* 服 */
+    const c = ['#8e3b3b', '#3b5e8e', '#3e7a4c', '#5a5a64', '#8a7430'][i];
+    part(g, -0.8 + i * 0.4, 1.15, 0.02, 0.3, 1.1, 0.4, c);
+  }
+  /* 左右と奥の柱ぶんだけ判定を置く＝中にすっぽり入れる */
+  addSolid(x + Math.cos(ry || 0) * 1.05, z - Math.sin(ry || 0) * 1.05, 0.2, 1.1, 3.1, ry);
+  addSolid(x - Math.cos(ry || 0) * 1.05, z + Math.sin(ry || 0) * 1.05, 0.2, 1.1, 3.1, ry);
+  addSolid(x, z, 2.4, 1.25, 3.2, ry, 3.0);                     /* 上には乗れる */
+}
+/** 長テーブル。下は丸まると入れる高さ */
+function longTable(x, z, ry, len) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0.78, 0, len, 0.12, 1.5, '#8a5c34');
+  part(g, 0, 0.88, 0, len - 0.2, 0.04, 1.3, '#e8e0cc');        /* テーブルクロス */
+  for (const sx of [-len / 2 + 0.4, len / 2 - 0.4]) {
+    part(g, sx, 0, -0.55, 0.18, 0.78, 0.18, '#6b4c2c');
+    part(g, sx, 0, 0.55, 0.18, 0.78, 0.18, '#6b4c2c');
+  }
+  for (let i = 0; i < 4; i++) {                                 /* しょっき */
+    part(g, -len / 2 + 1.0 + i * (len - 2) / 3, 0.92, 0, 0.34, 0.06, 0.34, '#fdfaf2');
+  }
+  addSolid(x, z, len, 1.5, 0.92, ry, 0.78);                     /* 天板だけ。下はくぐれる */
+}
+/** いす（背もたれつき）。座面に乗れる */
+function chairH(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0.46, 0, 0.5, 0.08, 0.5, '#7a5230');
+  part(g, 0, 0.54, -0.21, 0.5, 0.85, 0.09, '#6b4c2c');
+  for (const sx of [-0.2, 0.2]) for (const sz of [-0.2, 0.2]) part(g, sx, 0, sz, 0.07, 0.46, 0.07, '#6b4c2c');
+  addSolid(x, z, 0.55, 0.55, 0.54, ry);
+}
+/** ソファ。背もたれの裏に隠れられる */
+function sofa(x, z, ry, w) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, w, 0.4, 1.0, '#6b3b44');
+  part(g, 0, 0.4, 0.06, w - 0.3, 0.22, 0.86, '#8a4c58');       /* 座ぶとん */
+  part(g, 0, 0.4, -0.44, w, 0.72, 0.24, '#6b3b44');            /* 背もたれ */
+  part(g, -w / 2 + 0.13, 0.4, 0, 0.26, 0.4, 1.0, '#6b3b44');
+  part(g, w / 2 - 0.13, 0.4, 0, 0.26, 0.4, 1.0, '#6b3b44');
+  addSolid(x, z, w, 1.05, 0.62, ry);
+}
+/** 暖炉。中にもぐれる（原作でいう「へこみ」） */
+function fireplace(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, -1.3, 0, 0, 0.7, 2.4, 1.1, '#8e8478');
+  part(g, 1.3, 0, 0, 0.7, 2.4, 1.1, '#8e8478');
+  part(g, 0, 1.9, 0, 3.3, 0.5, 1.2, '#8e8478');
+  part(g, 0, 0, -0.4, 2.0, 1.9, 0.3, '#2e2a26');               /* おく */
+  part(g, 0, 2.4, 0, 3.6, 0.22, 1.35, '#a89a86');              /* マントルピース */
+  part(g, 0, 0, 0.1, 1.4, 0.16, 0.5, '#4a3b30');               /* まき */
+  const c = Math.abs(Math.cos(ry || 0)), s = Math.abs(Math.sin(ry || 0));
+  addSolid(x + Math.cos(ry || 0) * 1.3, z - Math.sin(ry || 0) * 1.3, 0.7 * c + 1.1 * s, 0.7 * s + 1.1 * c, 2.4);
+  addSolid(x - Math.cos(ry || 0) * 1.3, z + Math.sin(ry || 0) * 1.3, 0.7 * c + 1.1 * s, 0.7 * s + 1.1 * c, 2.4);
+  addSolid(x, z, 3.6, 1.35, 2.62, ry, 1.9);                    /* 上の板。下はくぐれる */
+}
+/** 浴そう。中に入って ふちに ぴったり収まる */
+function bathtub(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, -1.0, 2.2, 0.75, 0.2, '#f2f4f6');
+  part(g, 0, 0, 1.0, 2.2, 0.75, 0.2, '#f2f4f6');
+  part(g, -1.0, 0, 0, 0.2, 0.75, 2.2, '#f2f4f6');
+  part(g, 1.0, 0, 0, 0.2, 0.75, 2.2, '#f2f4f6');
+  part(g, 0, 0, 0, 2.0, 0.1, 1.9, '#e8eef2');
+  part(g, 0, 0.1, 0, 1.9, 0.28, 1.8, '#bcdcea');               /* お湯 */
+  for (const d of [[-1.0, 0], [1.0, 0], [0, -1.0], [0, 1.0]]) {
+    addSolid(x + d[0], z + d[1], d[0] ? 0.24 : 2.2, d[0] ? 2.2 : 0.24, 0.75);
+  }
+}
+/** 階段。段をつたって上がれる。下は物おき */
+function stairs(x, z, ry, n) {
+  const g = furn(x, z, ry);
+  for (let i = 0; i < n; i++) {
+    part(g, 0, i * 0.32, -i * 0.42, 2.6, 0.32, 0.44, i % 2 ? '#8a5c34' : '#96663a');
+  }
+  const c = Math.cos(ry || 0), s = Math.sin(ry || 0);
+  for (let i = 0; i < n; i++) {
+    addSolid(x - s * (-i * 0.42) + c * 0, z + c * (-i * 0.42), 2.6 * Math.abs(c) + 0.44 * Math.abs(s),
+      2.6 * Math.abs(s) + 0.44 * Math.abs(c), (i + 1) * 0.32, 0);
+  }
+}
+/** よろい かぶと。人型なので、そばに立つとまぎれる */
+function armour(x, z, ry) {
+  const g = furn(x, z, ry);
+  part(g, 0, 0, 0, 0.8, 0.16, 0.8, '#4e5158');
+  part(g, 0, 0.16, 0, 0.5, 0.62, 0.34, '#8e939c');             /* 胴 */
+  part(g, 0, 0.78, 0, 0.3, 0.3, 0.3, '#a4a9b2');               /* かぶと */
+  part(g, -0.32, 0.2, 0, 0.14, 0.55, 0.14, '#8e939c');
+  part(g, 0.32, 0.2, 0, 0.14, 0.55, 0.14, '#8e939c');
+  part(g, -0.14, 0, 0, 0.16, 0.2, 0.16, '#8e939c');
+  part(g, 0.14, 0, 0, 0.16, 0.2, 0.16, '#8e939c');
+  part(g, 0.44, 0.16, 0, 0.08, 1.5, 0.08, '#6b6f78');          /* やり */
+  addSolid(x, z, 0.85, 0.85, 1.1, ry);
+}
+/** つぼ。ならべると人ひとりぶんの かげ になる */
+function urn(x, z, r, h, color) {
+  cyl(x, 0, z, r * 0.7, 0.12, color, 12);
+  cyl(x, 0.12, z, r, h, color, 14);
+  cyl(x, 0.12 + h, z, r * 0.6, 0.18, color, 12);
+}
+
+function mansionRooms(WP, WP2, WP3, FLOOR, TILE, CAB, RUG1, RUG2) {
+  const WH = 6.6, IH = 5.6;         /* 外壁の高さ／間仕切りの高さ */
+
+  /* ---------- 間仕切り（wall は blockers に入るので、三人称カメラがちゃんと寄る） ---------- */
+  /* 北がわ：しょさい / しんしつ / よくしつ を横に3つ */
+  wall(-30, -12, 12, 0, WP, IH);          /* しょさい の南 */
+  wall(-13, -12, 8, 0, WP, IH);
+  wall(-4.5, -12, 5, 0, WP2, IH);         /* しんしつ の南（入口をあける） */
+  wall(11, -12, 8, 0, WP2, IH);
+  wall(22.5, -12, 9, 0, TILE, IH);        /* よくしつ の南 */
+  wall(-15, -21, 18, Math.PI / 2, WP, IH);/* しょさい／しんしつ の あいだ */
+  wall(14, -25, 10, Math.PI / 2, TILE, IH);/* しんしつ／よくしつ の あいだ */
+
+  /* 南がわ：リビング / ダイニング */
+  wall(-30, 8, 10, 0, WP3, IH);
+  wall(-14, 8, 14, 0, WP3, IH);
+  wall(2, 8, 8, 0, WP, IH);
+  wall(19, 8, 14, 0, WP, IH);
+  wall(-6, 19, 22, Math.PI / 2, WP3, IH); /* リビング／ダイニング の あいだ */
+
+  /* ---------- 部屋ごとの床 ---------- */
+  floorAt(-30, -30, -15, -12, FLOOR, 4);
+  floorAt(14, -30, 30, -12, TILE, 2.2);            /* よくしつ */
+  flat(-9, 0.03, 0, 13, 13, 0, -Math.PI / 2, RUG2, [1, 1]);    /* ホールのじゅうたん */
+  flat(-19, 0.03, 20, 12, 11, 0, -Math.PI / 2, RUG1, [1, 1]);  /* リビングのじゅうたん */
+
+  /* ---------- げんかんホール ---------- */
+  for (const px of [-14, -4, 6]) for (const pz of [-7, 3]) pillar(px, pz);
+  stairs(16, -2, Math.PI / 2, 9);                   /* 2階へは行けないが、上に乗れる */
+  box(20.5, 2.88, -6, 9, 0.4, 8, '#8a5c34');        /* 階段の上の おどりば */
+  box(20.5, 0, -9.6, 9, 2.88, 0.5, '#7a4f2c');
+  armour(-19, -6, Math.PI / 2); armour(-19, 2, Math.PI / 2);
+  urn(-1.5, -10.5, 0.5, 1.3, '#3e6b7a'); urn(0.5, -10.5, 0.42, 1.0, '#7a4a3e');
+  urn(11, 6, 0.5, 1.2, '#5c6b3e');
+  for (let i = 0; i < 4; i++) painting(-13 + i * 6, 2.6, -11.0, 0, 11 + i, 1.7);
+  cyl(-9, 4.3, 0, 0.9, 0.25, '#d8c07a', 12, true);  /* シャンデリア */
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    cyl(-9 + Math.cos(a) * 0.8, 4.55, Math.sin(a) * 0.8, 0.09, 0.4, '#fff3cf', 8, true);
+  }
+
+  /* ---------- しょさい（本だらけ） ---------- */
+  shelfTall(-28.6, -26, Math.PI / 2, 6); shelfTall(-28.6, -19, Math.PI / 2, 6);
+  shelfTall(-24, -28.6, 0, 6); shelfTall(-17, -28.6, 0, 6);
+  shelfTall(-16.4, -24, Math.PI / 2, 5);
+  longTable(-23, -19, 0, 3.2);
+  chairH(-23, -17.4, Math.PI); chairH(-23, -20.6, 0);
+  sofa(-21, -14.5, Math.PI, 2.6);
+  urn(-27, -14, 0.45, 1.1, '#6b4a7a');
+  painting(-20, 2.8, -28.6, 0, 21, 1.9);
+  cardboard(-26.5, -15.5, 0.4);
+
+  /* ---------- しんしつ ---------- */
+  bed(-6, -24, 0);
+  bed(4, -24, 0);
+  wardrobe(-12.5, -18, Math.PI / 2);
+  wardrobe(9.5, -18, -Math.PI / 2);
+  box(-1, 0, -28.6, 1.2, 0.7, 0.9, '#6b4c2c');       /* ナイトテーブル */
+  box(9, 0, -28.6, 1.2, 0.7, 0.9, '#6b4c2c');
+  curtain(-11, -29.2, 0, 3.4, '#4a5c7a');
+  curtain(8, -29.2, 0, 3.4, '#4a5c7a');
+  painting(1.5, 2.7, -28.6, 0, 31, 1.6);
+  chairStack(11.5, -27, 0.3);
+
+  /* ---------- よくしつ ---------- */
+  bathtub(19, -25, 0);
+  bathtub(26, -25, Math.PI / 2);
+  box(16, 0, -14.5, 1.4, 0.85, 0.7, '#f2f4f6');      /* 洗面台 */
+  box(19, 0, -14.5, 1.4, 0.85, 0.7, '#f2f4f6');
+  flat(16, 1.75, -14.0, 1.1, 1.2, 0, 0, '#cfe4ee');  /* かがみ */
+  flat(19, 1.75, -14.0, 1.1, 1.2, 0, 0, '#cfe4ee');
+  box(28.5, 0, -15, 1.0, 1.9, 1.0, '#dfe8ec');       /* 物入れ */
+  urn(23, -14.5, 0.42, 0.9, '#b4c4cc');
+  curtain(24, -29.2, 0, 3.0, '#dfe8ec');
+
+  /* ---------- リビング ---------- */
+  fireplace(-28.4, 20, Math.PI / 2);
+  sofa(-19, 15.5, 0, 3.4);
+  sofa(-19, 24.5, Math.PI, 3.4);
+  sofa(-13.5, 20, -Math.PI / 2, 3.0);
+  longTable(-19, 20, 0, 2.4);
+  shelfTall(-9.5, 26, -Math.PI / 2, 5);
+  painting(-19, 2.9, 8.9, 0, 41, 2.2);
+  painting(-24, 2.6, 28.6, 0, 42, 1.7);
+  painting(-14, 2.6, 28.6, 0, 43, 1.7);
+  curtain(-27, 28.8, 0, 3.4, '#7a3038');
+  armour(-9.5, 12, -Math.PI / 2);
+  urn(-27, 12, 0.55, 1.4, '#7a3038');
+  cardboard(-11.5, 28, -0.3);
+
+  /* ---------- ダイニング／だいどころ ---------- */
+  longTable(4, 18, 0, 7.0);
+  for (let i = 0; i < 3; i++) { chairH(1 + i * 3, 16.2, Math.PI); chairH(1 + i * 3, 19.8, 0); }
+  /* だいどころの台。上に乗れる */
+  box(14, 0, 12, 10, 0.9, 1.6, '#c8bca4');
+  flat(14, 0.45, 12.82, 10, 0.9, 0, 0, CAB, [3, 1]);
+  box(28.6, 0, 18, 1.6, 2.6, 10, '#d8cbb2');          /* 背の高い戸だな */
+  flat(27.75, 1.3, 18, 9.6, 2.4, Math.PI / 2, 0, CAB, [3, 1]);
+  box(22, 0, 26, 2.4, 0.9, 1.4, '#c8bca4');
+  box(9, 1.9, 26, 6, 0.7, 1.0, '#d8cbb2', 0, true);   /* 宙づりの戸だな。下をくぐれる */
+  addSolid(9, 26, 6, 1.0, 2.6, 0, 1.9);
+  flat(9, 2.25, 25.48, 6, 0.66, 0, 0, CAB, [2, 1]);
+  shelfTall(4, 28.6, Math.PI, 5);
+  beerCrates(26, 12, 0.2);
+  cardboard(24, 22, 0.5);
+  urn(11, 22, 0.5, 1.2, '#3e6b7a');
+  painting(14, 2.7, 8.9, 0, 51, 1.8);
+  curtain(20, 28.8, 0, 3.4, '#8a7430');
+
+  /* ---------- スポーン ---------- */
+  return [
+    [-9, -3], [-2, 0], [-14, 4], [2, -6], [-9, 6],
+    [-20, -16], [-27, -24], [-19, -26], [-25, -14],
+    [-6, -20], [4, -20], [-12, -26], [9, -26],
+    [19, -21], [26, -21], [17, -14],
+    [-19, 12], [-24, 20], [-14, 24], [-10, 27],
+    [4, 14], [8, 21], [22, 16], [26, 24], [14, 27]
+  ];
+}
+
+/* =====================================================================
    マップの登録と切りかえ
 ===================================================================== */
 const MAPS = [
+  { name: 'かくれんぼ屋敷', build: buildMansion, ceil: 5.6 },  /* 屋内なので天井まで */
   { name: '学校',     build: buildSchool,     ceil: 6 },
   { name: '道頓堀',   build: buildDotonbori,  ceil: 9 },   /* 川ぞいなので高く飛べる */
   { name: '遊園地',   build: buildAmusement,  ceil: 27 }   /* 観覧車の天辺まで登れる高さ */
@@ -3081,11 +3590,11 @@ function insideWall(x, y, z) {
   return false;
 }
 
-function resolveCollision(solids, pos, feetY, R0) {
+function resolveCollision(solids, pos, feetY, R0, bh) {
   /* 1) ふつうの半径で「どの面から入ってきたか」を決め、その面から少しだけ沈める。
         反対側へは絶対に抜けられないので、薄い壁でも貫通しない。 */
   const R = R0 || PLAYER_R;
-  const headY = feetY + 2.2;                 /* 頭の高さ。これより上にある物はくぐれる */
+  const headY = feetY + (bh || 2.2);         /* 頭の高さ。これより上にある物はくぐれる */
   for (let i = 0; i < solids.length; i++) {
     const s = solids[i];
     if (s.top <= feetY + 0.25 || s.y0 > headY) continue;
@@ -3094,9 +3603,11 @@ function resolveCollision(solids, pos, feetY, R0) {
     const dl = pos.x - (s.x0 - R), dr = (s.x1 + R) - pos.x;
     const db = pos.z - (s.z0 - R), df = (s.z1 + R) - pos.z;
     const m = Math.min(dl, dr, db, df);
-    /* 反対側へ抜けないよう、中心面から SAFE だけ手前で止める */
-    const ax = Math.min(EMBED_DEPTH, Math.max(0, (s.x1 - s.x0) / 2 - EMBED_SAFE));
-    const az = Math.min(EMBED_DEPTH, Math.max(0, (s.z1 - s.z0) / 2 - EMBED_SAFE));
+    /* 沈める量は「厚みの8割」まで。ただし反対側へ抜けないよう、
+       1サブステップぶん(SUBSTEP)の余白は必ず残す */
+    const hx = (s.x1 - s.x0) / 2, hz = (s.z1 - s.z0) / 2;
+    const ax = Math.min(EMBED_DEPTH, hx * 0.8, Math.max(0, hx - SUBSTEP));
+    const az = Math.min(EMBED_DEPTH, hz * 0.8, Math.max(0, hz - SUBSTEP));
     if (m === dl) pos.x = Math.min(pos.x, s.x0 + ax);
     else if (m === dr) pos.x = Math.max(pos.x, s.x1 - ax);
     else if (m === db) pos.z = Math.min(pos.z, s.z0 + az);
@@ -3152,22 +3663,30 @@ const w2px = function (wx) { return (wx - UVX0) / UVW * SIDE_W; };
 const w2py = function (wy) { return (1 - wy / BODY_H) * SKIN_H; };
 
 /* ポーズ：パーツごとに位置と大きさを変えてシルエットを作る */
+/* eye=目の高さ / camY=三人称の注視点 / h=当たり判定の背丈（低いすきまに入れるかを決める）。
+   h は「頭の球の中心(eye) + 半径0.215」ぶん。寝そべりだけは体を倒すので実測値を入れてある */
 const POSES = [
-  { name:'立つ', icon:'🧍', eye:1.50, speed:4.2, camY:0.95 },
-  { name:'しゃがむ', icon:'🧎', eye:0.98, speed:2.0, camY:0.62, tr:{
+  { name:'立つ', icon:'🧍', eye:1.50, speed:4.2, camY:0.95, h:1.74 },
+  { name:'しゃがむ', icon:'🧎', eye:0.98, speed:2.0, camY:0.62, h:1.22, tr:{
       head:{ y:1.02 }, torso:{ y:0.60, s:[1.09,0.92,1.09] },
       armL:{ y:0.66, s:[1,0.85,1] }, armR:{ y:0.66, s:[1,0.85,1] },
       legL:{ y:0.14, s:[1.06,0.55,1.06] }, legR:{ y:0.14, s:[1.06,0.55,1.06] } } },
-  { name:'丸まる', icon:'🥚', eye:0.64, speed:1.0, camY:0.42, tr:{
+  { name:'丸まる', icon:'🥚', eye:0.64, speed:1.0, camY:0.42, h:0.88, tr:{
       head:{ y:0.74, s:[0.92,0.92,0.92] }, torso:{ y:0.42, s:[1.38,1.08,1.38] },
       armL:{ x:-0.235, y:0.40, s:[0.9,0.55,0.9] }, armR:{ x:0.235, y:0.40, s:[0.9,0.55,0.9] },
       legL:{ x:-0.10, y:0.12, s:[0.95,0.5,0.95] }, legR:{ x:0.10, y:0.12, s:[0.95,0.5,0.95] } } },
-  { name:'のびる', icon:'📏', eye:2.02, speed:1.7, camY:1.15, tr:{
+  { name:'のびる', icon:'📏', eye:2.02, speed:1.7, camY:1.15, h:2.26, tr:{
       head:{ y:2.02, s:[0.9,0.95,0.9] }, torso:{ y:1.16, s:[0.84,1.55,0.84] },
       armL:{ x:-0.272, y:1.30, s:[0.9,1.5,0.9] }, armR:{ x:0.272, y:1.30, s:[0.9,1.5,0.9] },
       legL:{ x:-0.11, y:0.30, s:[0.9,1.4,0.9] }, legR:{ x:0.11, y:0.30, s:[0.9,1.4,0.9] } } },
-  { name:'寝そべる', icon:'🛌', eye:0.38, speed:0.8, camY:0.36, lie:true }
+  { name:'寝そべる', icon:'🛌', eye:0.38, speed:0.8, camY:0.36, h:0.62, lie:true }
 ];
+
+/** いまの自分の体の高さ（ポーズ＋体格ぶん）。当たり判定の「頭の高さ」に使う */
+function bodyH() {
+  const po = POSES[me.pose] || POSES[0];
+  return (po.h || (po.eye + 0.24)) * (me.scale || 1);
+}
 
 const _one = [1, 1, 1];
 const geoCache = {};
@@ -3779,15 +4298,14 @@ function doPick(cx, cy) {
 /* めり込みすぎの警告 */
 function updateEmbedWarn() {
   const el = $('embedWarn');
-  if (me.embedT <= 0) { el.className = 'hidden'; return; }
-  if (me.exposed) {
-    el.className = 'danger';
-    el.textContent = '⚠ めり込みすぎです — いまの位置が鬼に知らされています（体を1割以上出してください）';
-  } else {
-    el.className = '';
-    el.textContent = '⚠ 下の方にめり込みすぎです — あと ' + Math.ceil(REVEAL_SEC - me.embedT) +
+  el.classList.toggle('hidden', me.embedT <= 0);
+  if (me.embedT <= 0) return;
+  el.classList.toggle('danger', !!me.exposed);
+  el.classList.toggle('warn', !me.exposed);
+  el.textContent = me.exposed
+    ? '⚠ めり込みすぎです — いまの位置が鬼に知らされています（体を1割以上出してください）'
+    : '⚠ 下の方にめり込みすぎです — あと ' + Math.ceil(REVEAL_SEC - me.embedT) +
       ' 秒で鬼に場所が知らされます（体が10%以上出ていないとダメ）';
-  }
 }
 
 /* =====================================================================
@@ -3796,7 +4314,7 @@ function updateEmbedWarn() {
 const keys = new Set();
 const input = { mx: 0, my: 0, lookX: 0, lookY: 0, up: false, down: false, locked: false, stick: false };
 const mouse = { x: 0, y: 0 };
-let releaseStick = null;
+let releaseStick = null, releaseDrag = null;
 /** 指やキーの取りこぼしで動きっぱなしになるのを防ぐ */
 function resetInput() {
   keys.clear();
@@ -3806,6 +4324,7 @@ function resetInput() {
   if (u) u.classList.remove('on');
   if (d) d.classList.remove('on');
   if (releaseStick) releaseStick();
+  if (releaseDrag) releaseDrag();      /* 視点ドラッグの指も忘れる */
 }
 addEventListener('blur', resetInput);
 document.addEventListener('visibilitychange', function () { if (document.hidden) resetInput(); });
@@ -3842,7 +4361,7 @@ addEventListener('keydown', function (e) {
   else if (e.code === 'KeyC') putClone();
   else if (e.code === 'KeyE') useAction();
   else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleMouseLock();
-  else if (e.code === 'Digit5') toggleFree();
+  else if (e.code === 'KeyV') toggleFree();          /* ※5 はポーズに使うので V にしてある */
   else if (e.code === 'Escape' && paint.open) togglePaint();
 });
 addEventListener('keyup', function (e) { keys.delete(e.code); });
@@ -3867,7 +4386,7 @@ function toggleMouseLock() {
 }
 addEventListener('pointerlockchange', function () {
   input.locked = document.pointerLockElement === canvasEl;
-  $('lockTag').className = input.locked ? '' : 'hidden';
+  $('lockTag').classList.toggle('hidden', !input.locked);
 });
 addEventListener('mousemove', function (e) {
   mouse.x = e.clientX; mouse.y = e.clientY;
@@ -3980,8 +4499,22 @@ canvasEl.addEventListener('wheel', function (e) {
     if (moved > 12 || performance.now() - t0 > 450) return;
     onTap(e.clientX, e.clientY);
   }
+  /** つかんでいる指をぜんぶ放す。id が残ったままだと以後のドラッグが丸ごと無視される */
+  function forget(e) {
+    if (e) { pinch.delete(e.pointerId); if (e.pointerId === panId) panId = null; }
+    else { pinch.clear(); panId = null; }
+    if (pinch.size < 2) pinchD = 0;
+    id = null;
+    if (painting) { painting = false; lastSkinPt = null; paint.dirty(true); }
+  }
   canvasEl.addEventListener('pointerup', up);
-  canvasEl.addEventListener('pointercancel', function (e) { pinch.delete(e.pointerId); if (e.pointerId === panId) panId = null; id = null; });
+  canvasEl.addEventListener('pointercancel', forget);
+  /* 取りこぼし対策：setPointerCapture が失敗していると pointerup が canvas に来ないので、
+     window でも受ける。ここが無いと指を canvas の外で離したときに操作が効かなくなる */
+  addEventListener('pointerup', function (e) { if (e.target !== canvasEl) forget(e); });
+  addEventListener('pointercancel', function (e) { if (e.target !== canvasEl) forget(e); });
+  canvasEl.addEventListener('lostpointercapture', forget);
+  releaseDrag = forget;
 })();
 
 (function () {   /* バーチャルスティック（左半分のどこを押しても出る） */
@@ -4329,9 +4862,17 @@ const ndc = new THREE.Vector2();
 const _aimOrg = new THREE.Vector3(), _aimDir = new THREE.Vector3(), _aimPt = new THREE.Vector3();
 /** 狙いは「キャラの目から、自分が向いている向き」。三人称カメラの位置には左右されない */
 function setAimRay() {
-  _aimOrg.set(me.pos.x, me.pos.y + (POSES[me.pose].eye || 1.5) * me.scale, me.pos.z);
-  const cp = Math.cos(me.pitch);
-  _aimDir.set(Math.sin(me.yaw) * cp, -Math.sin(me.pitch), Math.cos(me.yaw) * cp);
+  const rst = me.ride ? me.ride.ride.seats[me.ride.i] : null;
+  if (rst && rst.q) {
+    /* 乗り物の座席は逆さにもなるので、yaw/pitch ではなくカメラの向きをそのまま使う
+       （乗車中は必ず一人称なので、カメラ＝目の位置） */
+    _aimOrg.copy(camera.position);
+    camera.getWorldDirection(_aimDir);
+  } else {
+    _aimOrg.set(me.pos.x, me.pos.y + (POSES[me.pose].eye || 1.5) * me.scale, me.pos.z);
+    const cp = Math.cos(me.pitch);
+    _aimDir.set(Math.sin(me.yaw) * cp, -Math.sin(me.pitch), Math.cos(me.yaw) * cp);
+  }
   ray.set(_aimOrg, _aimDir);
   ray.far = 26;
 }
@@ -4517,6 +5058,7 @@ function nearestSeat() {
   let best = null, bd = 1e9;
   for (let k = 0; k < rides.length; k++) {
     const r = rides[k], bz = r.boardZone;
+    if (r.canBoard && !r.canBoard()) continue;      /* 走っている車両には飛び乗れない */
     const inZone = !!bz && Math.hypot(me.pos.x - bz.x, me.pos.z - bz.z) < bz.r &&
       me.pos.y > (bz.y || 0) - 2.5 && me.pos.y < (bz.y || 0) + 4.5;
     const lim = inZone ? 1e9 : 2.9;
@@ -4531,7 +5073,13 @@ function toggleBoard() {
   if (me.ride) { getOff(); return; }
   if (paint.open || G.free) { toast('ペイント／フリーカメラ中は のれません'); return; }
   const b = nearestSeat();
-  if (!b) { toast('近くに スイッチ も のりば もありません'); return; }
+  if (!b) {
+    /* 走っているコースターのそばに立っている、というのが一番ありがちなので理由を出す */
+    let busy = false;
+    for (let k = 0; k < rides.length; k++) if (rides[k].canBoard && !rides[k].canBoard()) busy = true;
+    toast(busy ? '走っています。駅にもどってくるまで待ってください' : '近くに スイッチ も のりば もありません');
+    return;
+  }
   me.ride = b; me.rideYaw = 0; me.vel.set(0, 0, 0);
   me.pos.copy(b.ride.seats[b.i].pos);
   toast(b.ride.name + ' の ' + b.ride.seats[b.i].name + ' に のりました（もう一度おすと おりる）');
@@ -4587,11 +5135,11 @@ function updateRideButtons() {
   $('btnBoard').querySelector('i').textContent = label[1];
   $('btnBoard').classList.toggle('on', si >= 0);
   const ut = $('useTag');
+  ut.classList.toggle('hidden', !(si >= 0 && !me.ride));
   if (si >= 0 && !me.ride) {
-    ut.className = '';
     ut.textContent = '🎢 ' + rides[si].name + '：' + (isTouch ? '🎢ボタン' : 'E キー') +
       'で' + ((G.rideOn && G.rideOn[si]) ? 'とめる' : 'うごかす');
-  } else ut.className = 'hidden';
+  }
   /* 隠れ鬼は重力＋ジャンプなので、上下ボタンの意味が変わる */
   const oni = oniRule();
   $('btnUp').firstChild.nodeValue = oni ? '⤒' : '▲';
@@ -4624,8 +5172,19 @@ function hostBroadcast() {
   net.send('state', {
     phase: G.phase, remain: G.remain, roles: G.roles, caught: G.caught, caughtAt: G.caughtAt,
     winner: G.winner, settings: G.settings, map: G.map,
-    rideSeed: G.rideSeed, rideOn: G.rideOn
+    rideSeed: G.rideSeed, rideOn: G.rideOn, rideU: rideU()
   });
+}
+/** 乗り物がいま一周のどこにいるか。ホストが配って、全員の見えかたをそろえる */
+function rideU() {
+  if (!hasRides()) return null;
+  return rides.map(function (r) { return r.getU ? +r.getU().toFixed(4) : -1; });
+}
+function syncRideU(arr) {
+  if (!Array.isArray(arr) || !hasRides()) return;
+  for (let i = 0; i < rides.length; i++) {
+    if (rides[i].setU && arr[i] >= 0) rides[i].setU(arr[i]);
+  }
 }
 function hostStart() {
   clearClones();
@@ -4634,7 +5193,11 @@ function hostStart() {
   if ((G.settings.map || 0) !== G.map) buildMap(G.settings.map || 0);
   const ids = Array.from(net.players.keys());
   if (ids.length < 2) { alert('2人以上必要です'); return false; }
-  ids.sort(function () { return Math.random() - 0.5; });
+  /* きちんと混ぜる（sort に乱数を返す書きかたは偏って、先に入った人が鬼になりやすい） */
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+  }
   /* 隠れ鬼は鬼を交代していく遊びなので、鬼はいつも1人 */
   const nSeek = oniRule() ? 1 : Math.min(G.settings.seekers, ids.length - 1);
   G.roles = {}; G.caught = {}; G.caughtAt = {}; G.winner = null;
@@ -4842,6 +5405,8 @@ function showResult() {
     row.appendChild(rs);
     box.appendChild(row);
   });
+  /* ソロは leaveToTitle するのでラベルを合わせる（ずっと「ロビーへ」だった） */
+  $('btnAgain').textContent = G.mode === 'online' ? 'ロビーへ' : 'タイトルへ';
   show('scResult');
   paint.close();
 }
@@ -4860,12 +5425,24 @@ function renderLobby() {
     box.appendChild(row);
   });
   const host = net.isHost;
-  $('btnStart').style.opacity = host ? 1 : .4;
   $('btnStart').disabled = !host;
-  $('hostSettings').style.opacity = host ? 1 : .4;
+  /* ホスト以外はさわっても意味が無いので、見た目だけでなく本当に押せなくする */
+  const sels = $('hostSettings').querySelectorAll('select');
+  for (let i = 0; i < sels.length; i++) sels[i].disabled = !host;
+  $('hostSettings').style.opacity = host ? 1 : .55;
+  if (!host) showSettings(G.settings);        /* ホストの設定を映す */
   $('lobbyHint').textContent = host
     ? (net.players.size < 2 ? 'あと1人以上入るのを待っています' : 'ゲーム開始できます')
     : 'ホストが開始するのを待っています';
+}
+/** ロビーの設定欄に値を入れる。ホスト以外はこれで最新の設定が見える */
+function showSettings(s) {
+  if (!s) return;
+  if (s.rule) $('setRule').value = s.rule;
+  if (typeof s.map === 'number') $('setMap').value = s.map;
+  if (s.seekers) $('setSeekers').value = s.seekers;
+  if (s.prep) $('setPrep').value = s.prep;
+  if (s.hunt) $('setHunt').value = s.hunt;
 }
 
 /* =====================================================================
@@ -4889,8 +5466,10 @@ net.on('state', function (s) {
   G.caught = s.caught || {}; G.caughtAt = s.caughtAt || {};
   G.winner = s.winner; G.settings = s.settings || G.settings;
   G.rule = (G.settings && G.settings.rule === 'oni') ? 'oni' : 'hide';
+  showSettings(G.settings);       /* ロビーの表示をホストに合わせる */
   if (s.rideSeed && s.rideSeed !== G.rideSeed) { G.rideSeed = s.rideSeed; placeRideSwitches(G.rideSeed); }
   if (s.rideOn) syncRideOn(s.rideOn);
+  if (s.rideU) syncRideU(s.rideU);
   if (typeof s.map === 'number' && s.map !== G.map) {   /* ホストのマップに合わせる */
     clearClones();
     buildMap(s.map);
@@ -4985,9 +5564,22 @@ function updateWaitRoom() {
   }
 }
 
+/** そのマスの「立てる高さ」。groundHeightAt は STEP_UP より高い段には乗らないので、
+    出現のときだけは高い足場（道頓堀の岸など）にもちゃんと乗せる */
+function standYAt(x, z) {
+  const S = world.solids;
+  let h = 0;
+  for (let i = 0; i < S.length; i++) {
+    const s = S[i];
+    if (s.top > 6 || s.top <= h) continue;              /* 屋根の上には出さない */
+    if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1) h = s.top;
+  }
+  return h;
+}
 function respawn() {
   const sp = world.spawns[Math.floor(Math.random() * world.spawns.length)];
-  me.pos.set(sp[0], 0, sp[1]);
+  /* y=0 に置くと、岸のような高い足場では横に押し出されて川へ落ちてしまう */
+  me.pos.set(sp[0], standYAt(sp[0], sp[1]), sp[1]);
   me.vel.set(0, 0, 0);
   me.yaw = Math.atan2(-sp[0], -sp[1]);
   me.pitch = 0;
@@ -5001,7 +5593,7 @@ function enterGame() {
   respawn();
   applyState();
   placeCrosshair();
-  if (!isTouch) toast('WASD=移動 / ドラッグ=視点 / Space=浮く / Ctrl=下がる / Shift=走る / F=ペイント / R=ポーズ', 6500);
+  if (!isTouch) toast('WASD=移動 / ドラッグ=視点 / Space=浮く / Ctrl=下がる / F=ペイント / R=ポーズ / E=つかう', 6500);
   else toast('左スティックで移動、画面をなぞって視点。🎨でペイント', 5000);
 }
 function leaveToTitle() {
@@ -5117,9 +5709,14 @@ $('cfgSave').onclick = function () {
    12. メインループ
 ===================================================================== */
 const GRAVITY = 17, CEIL_Y = 6.0;   /* 既定。マップごとに G.ceilY で上書き */
+/* 三人称カメラがこれより寄ったら、一人称にきりかえる（自分の背中で画面が埋まるため） */
+const TP_MIN = 1.25;
 const EMBED_MIN = 0.10, REVEAL_SEC = 10;
 const camDir = new THREE.Vector3(), lookAt = new THREE.Vector3();
 const tpRay = new THREE.Raycaster();
+/* 乗り物の座席から首を振るのに使う（使いまわして毎フレームの作りなおしを避ける） */
+const _qy = new THREE.Quaternion(), _qx = new THREE.Quaternion();
+const _axY = new THREE.Vector3(0, 1, 0), _axX = new THREE.Vector3(1, 0, 0);
 let prev = performance.now();
 
 function step(dt) {
@@ -5240,6 +5837,11 @@ function step(dt) {
     paint.pan.y = Math.max(-1.5, Math.min(4, paint.pan.y));
   }
 
+  /* 当たり判定の背丈。しゃがむ・丸まると低くなって、机の下や低いすきまに入れる。
+     2.2 で頭打ちにしてあるのは「のびる」で今まで通れた所が通れなくならないようにするため
+     （縮む方向にしか変わらないので、できることが減らない） */
+  const hitH = Math.min(2.2, bodyH());
+
   /* --- 上下（浮遊・壁への張り付き）と、めり込み量 --- */
   if (riding) {
     /* アトラクションに乗っているあいだは、座席にぴったりついていく */
@@ -5265,7 +5867,7 @@ function step(dt) {
     for (let i = 0; i < nO; i++) {
       me.pos.x += mvx / nO;
       me.pos.z += mvz / nO;
-      colO = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale);
+      colO = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale, hitH);
     }
     me.exposure = colO.exposure;
     me.stuck = false;
@@ -5290,7 +5892,7 @@ function step(dt) {
     for (let i = 0; i < n; i++) {
       me.pos.x += mvx / n;
       me.pos.z += mvz / n;
-      col = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale);
+      col = resolveCollision(world.solids, me.pos, me.pos.y, PLAYER_R * me.scale, hitH);
     }
     me.exposure = col.exposure;
     me.stuck = col.touching && !release;
@@ -5316,7 +5918,8 @@ function step(dt) {
   const swNow = (hasRides() && !paint.open && !G.free && !me.ride) ? nearestSwitch() : -1;
   if (swNow !== step._sw) { step._sw = swNow; updateRideButtons(); }
   /* 空中で何かに張りついているときだけ知らせる（地面に立っているときは出さない） */
-  $('clingTag').className = (!ghost && !oni && !riding && me.stuck && !me.onGround && !paint.open && !G.free) ? '' : 'hidden';
+  $('clingTag').classList.toggle('hidden',
+    !(!ghost && !oni && !riding && me.stuck && !me.onGround && !paint.open && !G.free));
 
   /* ペイント中に Space 長押し＝3D スポイト */
   if (paint.open && keys.has('Space') && performance.now() - (doPick._t || 0) > 130) {
@@ -5350,9 +5953,22 @@ function step(dt) {
     camera.position.copy(me.fcam);
     camera.rotation.set(-me.fpitch, me.fyaw + Math.PI, 0, 'YXZ');
   } else if (G.view === 0) {
-    camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
-    /* three のカメラは自分の -Z を向くので、進行方向 (sin,cos) に合わせて 180 度ずらす */
-    camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
+    const rst = me.ride ? me.ride.ride.seats[me.ride.i] : null;
+    if (rst && rst.q) {
+      /* 乗り物の座席は、たて回転で逆さにもなる。yaw と pitch の2つでは表せないので、
+         座席の向きそのものを受けとって、そこから首を振る */
+      camera.position.set(
+        me.pos.x + rst.up.x * eyeY,
+        me.pos.y + rst.up.y * eyeY,     /* 逆さのときは下にぶら下がる */
+        me.pos.z + rst.up.z * eyeY);
+      camera.quaternion.copy(rst.q)
+        .multiply(_qy.setFromAxisAngle(_axY, me.rideYaw))
+        .multiply(_qx.setFromAxisAngle(_axX, -me.pitch));
+    } else {
+      camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
+      /* three のカメラは自分の -Z を向くので、進行方向 (sin,cos) に合わせて 180 度ずらす */
+      camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
+    }
   } else {
     const dist = paint.open ? paint.dist : 2.3 * me.scale + 0.45;
     /* ふだんは背後の少し上から（机やいすの背もたれ越しに見えるように） */
@@ -5384,11 +6000,19 @@ function step(dt) {
     if (paint.open) me.camD = d;
     else if (d < me.camD) me.camD = d;                 /* 壁が来たら即よける */
     else me.camD += (d - me.camD) * (1 - Math.pow(0.005, dt));
-    camera.position.copy(lookAt).addScaledVector(camDir, me.camD);
-    /* 床下にもぐらない */
-    const gy = groundHeightAt(world.solids, camera.position.x, camera.position.z, camera.position.y, 0, 0.2);
-    camera.position.y = Math.max(gy + 0.28, camera.position.y);
-    camera.lookAt(lookAt);
+    /* これ以上寄れないところまで来たら、一人称にきりかえる。
+       壁ぎわに隠れるのがこのゲームの遊びなので、背中で画面が埋まると何も見えない */
+    if (!paint.open && me.camD < TP_MIN) {
+      camera.position.set(me.pos.x, me.pos.y + eyeY, me.pos.z);
+      camera.rotation.set(-me.pitch, me.yaw + Math.PI, 0, 'YXZ');
+      myAvatar.setVisible(false);
+    } else {
+      camera.position.copy(lookAt).addScaledVector(camDir, me.camD);
+      /* 床下にもぐらない */
+      const gy = groundHeightAt(world.solids, camera.position.x, camera.position.z, camera.position.y, 0, 0.2);
+      camera.position.y = Math.max(gy + 0.28, camera.position.y);
+      camera.lookAt(lookAt);
+    }
   }
 
   /* ペイント画面に隠れないよう、投影をずらして自分を見える範囲の中央に置く */
