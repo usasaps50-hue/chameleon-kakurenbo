@@ -3007,7 +3007,7 @@ function buildAmusement() {
 
   const spawns = [
     [0, 20], [-8, 16], [8, 16], [-16, 10], [16, 10], [0, 8], [-6, 4], [6, 4],
-    [-20, 2], [20, 2], [-10, -4], [10, -4], [0, -12], [-14, -14], [14, -14],
+    [-24, 2], [20, 2], [-10, -4], [10, -4], [0, -12], [-14, -14], [14, -14],
     [-24, 16], [24, 16], [-24, -18], [24, -22], [4, -26], [-4, -26], [26, 26], [-26, 26]
   ];
   return spawns;
@@ -5564,9 +5564,22 @@ function updateWaitRoom() {
   }
 }
 
+/** そのマスの「立てる高さ」。groundHeightAt は STEP_UP より高い段には乗らないので、
+    出現のときだけは高い足場（道頓堀の岸など）にもちゃんと乗せる */
+function standYAt(x, z) {
+  const S = world.solids;
+  let h = 0;
+  for (let i = 0; i < S.length; i++) {
+    const s = S[i];
+    if (s.top > 6 || s.top <= h) continue;              /* 屋根の上には出さない */
+    if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1) h = s.top;
+  }
+  return h;
+}
 function respawn() {
   const sp = world.spawns[Math.floor(Math.random() * world.spawns.length)];
-  me.pos.set(sp[0], 0, sp[1]);
+  /* y=0 に置くと、岸のような高い足場では横に押し出されて川へ落ちてしまう */
+  me.pos.set(sp[0], standYAt(sp[0], sp[1]), sp[1]);
   me.vel.set(0, 0, 0);
   me.yaw = Math.atan2(-sp[0], -sp[1]);
   me.pitch = 0;
